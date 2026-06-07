@@ -1,9 +1,9 @@
 ---
-# Required — set in playbook vars; cyberark_token is produced by the cyberark_auth role
+# Required — set in playbook vars; cyberark_token is produced by the cyberark_api_authentication role
 cyberark_subdomain: ""
 
 # Required when using cyberark_sia_policy_principal_usernames for principal
-# resolution — the same tenant value used by the cyberark_auth role.
+# resolution — the same tenant value used by the cyberark_api_authentication role.
 cyberark_identity_tenant: ""
 
 cyberark_validate_certs: true

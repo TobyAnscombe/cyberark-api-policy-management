@@ -19,7 +19,7 @@
 #
 # requirements.yml (install before running):
 #   roles:
-#     - name: cyberark_auth
+#     - name: cyberark_api_authentication
 #       src: https://github.com/TobyAnscombe/cyberark-api-management
 #       version: main
 #     - name: cyberark_sia_policy_management
@@ -41,7 +41,7 @@
     #   ...
 
   roles:
-    - cyberark_auth
+    - cyberark_api_authentication
 
 # ---------------------------------------------------------------------------
 # Play 1 — FQDN wildcard: all Linux hosts in a domain

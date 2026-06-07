@@ -31,7 +31,7 @@
     #   ...
 
   roles:
-    - cyberark_auth
+    - cyberark_api_authentication
 
 # ---------------------------------------------------------------------------
 # Policy matrix — users × policy definitions

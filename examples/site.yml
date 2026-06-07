@@ -18,7 +18,7 @@
 #
 # requirements.yml (install before running):
 #   roles:
-#     - name: cyberark_auth
+#     - name: cyberark_api_authentication
 #       src: https://github.com/TobyAnscombe/cyberark-api-management
 #       version: main
 #     - name: cyberark_sia_policy_management
@@ -88,7 +88,7 @@
           username: ec2-user
 
   roles:
-    - cyberark_auth
+    - cyberark_api_authentication
     - cyberark_sia_policy_management
 
   tasks:

@@ -188,7 +188,7 @@
         behavior: {}
 
   roles:
-    - cyberark_auth
+    - cyberark_api_authentication
 
   tasks:
     - name: Manage SIA policy

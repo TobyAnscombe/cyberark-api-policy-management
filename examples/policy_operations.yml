@@ -28,7 +28,7 @@
     #   ...
 
   roles:
-    - cyberark_auth
+    - cyberark_api_authentication
 
 # ---------------------------------------------------------------------------
 # Play 1 — Get all policies (paginated, with optional filter)
