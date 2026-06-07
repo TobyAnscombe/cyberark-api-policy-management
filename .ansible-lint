@@ -5,3 +5,8 @@ offline: true
 mock_roles:
   - cyberark_auth
   - cyberark_sia_policy_management
+
+skip_list:
+  # Examples pass role interface vars directly to include_role vars: — this is
+  # correct usage; the cyberark_sia_* prefix IS the role's public interface.
+  - var-naming[no-role-prefix]

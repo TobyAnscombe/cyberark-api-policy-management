@@ -76,7 +76,7 @@
 
     - name: Show all policy names
       debug:
-        msg: "{{ _sia_all_policies.json.results | map(attribute='name', default='(unknown)') | list }}"
+        msg: "{{ _sia_all_policies.json.results | map(attribute='metadata.name', default='(unknown)') | list }}"
 
 # ---------------------------------------------------------------------------
 # Play 2 — Get a single policy by name

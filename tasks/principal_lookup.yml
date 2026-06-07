@@ -9,7 +9,7 @@
 # All loops use explicit loop_var names so this file is safe to include_tasks
 # from a parent loop (e.g. a cartesian product loop) without variable collision.
 
-- name: Look up '{{ _lookup_username }}' in CyberArk Identity
+- name: "Look up principal in CyberArk Identity: {{ _lookup_username }}"
   uri:
     url: "https://{{ cyberark_identity_tenant }}.id.cyberark.cloud/RedRock/query"
     method: POST
