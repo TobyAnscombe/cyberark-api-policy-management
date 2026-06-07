@@ -1,8 +1,39 @@
+# Ansible
 *.retry
-*.vault
-.vault_pass
-*.secret
-
 .ansible/
 
+# Secrets and credentials
+*.vault
+.vault_pass
+.vault_password
+vault_pass.txt
+*.secret
+*credentials*.yml
+*secrets*.yml
+
+# Local test / override vars files (may contain real credentials)
+*local_vars*.yml
+*test_vars*.yml
+*_override*.yml
+
+# Claude Code context — kept local, not committed
 CLAUDE.md
+
+# Stray markdown in task directories
+tasks/*.md
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# macOS
+.DS_Store

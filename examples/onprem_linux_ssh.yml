@@ -210,16 +210,18 @@
       FQDN/IP:
         fqdnRules: []
         ipRules:
-          # EXACTLY — match a specific IP address
+          # ipAddresses accepts exact IPv4 addresses only.
+          # CIDR notation and wildcard patterns are rejected by the API.
           - logicalName: "prod-web-01"
             operator: EXACTLY
             ipAddresses:
               - "10.10.1.100"
-          # WILDCARD — match a subnet using wildcard notation
-          - logicalName: "prod-app-subnet"
-            operator: WILDCARD
+          - logicalName: "prod-app-01"
+            operator: EXACTLY
             ipAddresses:
-              - "10.10.2.0/24"
+              - "10.10.2.10"
+              - "10.10.2.11"
+              - "10.10.2.12"
 
     cyberark_sia_policy_behavior:
       connectAs:
@@ -288,14 +290,15 @@
     cyberark_sia_policy_targets:
       FQDN/IP:
         fqdnRules:
-          - operator: WILDCARD
-            computernamePattern: "*.prod.example.internal"
+          # Approval policies require EXACTLY — WILDCARD, PREFIX, SUFFIX, and
+          # CONTAINS operators are rejected when accessApproval.required is true.
+          - operator: EXACTLY
+            computernamePattern: "bastion01.prod.example.internal"
             domain: "prod.example.internal"
-        ipRules:
-          - logicalName: "prod-mgmt-subnet"
-            operator: WILDCARD
-            ipAddresses:
-              - "10.20.0.0/24"
+          - operator: EXACTLY
+            computernamePattern: "bastion02.prod.example.internal"
+            domain: "prod.example.internal"
+        ipRules: []
 
     cyberark_sia_policy_behavior:
       connectAs:

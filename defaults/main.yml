@@ -138,10 +138,16 @@ cyberark_sia_policy_idle_time: 10
 #   cyberark_sia_policy_targets:
 #     FQDN/IP:
 #       fqdnRules:
-#         - operator: WILDCARD
+#         - operator: WILDCARD   # WILDCARD | EXACTLY | PREFIX | SUFFIX | CONTAINS
 #           computernamePattern: "*.example.com"
 #           domain: "example.com"
-#       ipRules: []
+#       ipRules:
+#         # ipAddresses accepts exact IPv4 addresses only.
+#         # CIDR notation (10.0.0.0/24) and wildcards (10.0.0.*) are rejected.
+#         - logicalName: "web-01"
+#           operator: EXACTLY
+#           ipAddresses:
+#             - "10.10.1.100"
 #
 # DB:
 #   cyberark_sia_policy_targets:

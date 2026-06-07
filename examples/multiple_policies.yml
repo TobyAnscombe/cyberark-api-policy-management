@@ -154,7 +154,6 @@
             fromHour: "00:00"
             toHour: "00:00"
           maxSessionDuration: 1
-        idle_time: 0
         targets:
           targets:
             - roleId: arn:aws:iam::123456789012:role/ReadOnlyAccess
@@ -174,14 +173,15 @@
         principals:
           - *role_iam_managers
         conditions:
-          # accessWindow is intentionally omitted — accessApproval.required: true
-          # mandates that the two are mutually exclusive
+          # accessWindow is intentionally omitted — the API rejects it when
+          # access_approval.required is true (the two are mutually exclusive).
           maxSessionDuration: 8
-          accessApproval:
-            required: true
-            approvers:
-              - *role_approvers
-        idle_time: 0
+        # access_approval is passed as a separate role variable so that
+        # cyberark_sia_policy_conditions stays clean and the interface is consistent.
+        access_approval:
+          required: true
+          approvers:
+            - *role_approvers
         targets:
           - groupId: c63819e2-2397-4faa-850f-4abde34e52fb
             directoryId: 280a06f4-3f9b-4910-8967-053a914e314e
@@ -204,6 +204,7 @@
         cyberark_sia_policy_idle_time: "{{ item.idle_time | default(10) }}"
         cyberark_sia_policy_targets: "{{ item.targets }}"
         cyberark_sia_policy_behavior: "{{ item.behavior | default({}) }}"
+        cyberark_sia_policy_access_approval: "{{ item.access_approval | default(omit) }}"
       loop: "{{ sia_policies }}"
       loop_control:
         label: "{{ item.name }}"

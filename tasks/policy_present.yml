@@ -129,7 +129,20 @@
     status_code: [200]
     timeout: 30
     validate_certs: "{{ cyberark_validate_certs }}"
-  register: _cyberark_sia_policy_update
+  when: _cyberark_sia_policy_id | trim | length > 0
+  run_once: true
+  delegate_to: localhost
+
+- name: Fetch updated policy detail
+  uri:
+    url: "https://{{ cyberark_subdomain }}.uap.cyberark.cloud/api/policies/{{ _cyberark_sia_policy_id }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ cyberark_token }}"
+    status_code: [200]
+    timeout: 30
+    validate_certs: "{{ cyberark_validate_certs }}"
+  register: _cyberark_sia_policy_get
   when: _cyberark_sia_policy_id | trim | length > 0
   run_once: true
   delegate_to: localhost
@@ -145,10 +158,10 @@
   run_once: true
   delegate_to: localhost
 
-- name: Expose updated policy ID as fact
+- name: Expose updated policy detail as fact
   set_fact:
     cyberark_sia_policy_id: "{{ _cyberark_sia_policy_id }}"
-    cyberark_sia_policy_detail: {}
+    cyberark_sia_policy_detail: "{{ _cyberark_sia_policy_get.json }}"
   when: _cyberark_sia_policy_id | trim | length > 0
   run_once: true
   delegate_to: localhost
