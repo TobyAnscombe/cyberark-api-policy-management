@@ -1,0 +1,235 @@
+---
+# Example: Create a consistent set of on-prem Linux SSH policies for a list of users.
+#
+# Data model:
+#   target_users       — the users to onboard; one principal resolution per user per policy
+#   policy_definitions — the policy templates applied to every user
+#
+# A policy is created for every user × policy_definition combination:
+#   name: "{{ user.display_name }} - {{ policy.name_suffix }}"
+#
+# To remove all policies, pass: -e cyberark_sia_policy_state=absent
+#
+# Run:
+#   ansible-playbook examples/onprem_linux_ssh_multi_user.yml \
+#     -e cyberark_identity_tenant=YOUR_TENANT_ID \
+#     -e cyberark_subdomain=YOUR_SUBDOMAIN \
+#     --vault-password-file ~/.vault_pass
+
+- name: Authenticate to CyberArk
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    cyberark_identity_tenant: "YOUR_TENANT_ID"
+    cyberark_subdomain: "YOUR_SUBDOMAIN"
+    # cyberark_client_id: !vault |
+    #   $ANSIBLE_VAULT;1.1;AES256
+    #   ...
+    # cyberark_client_secret: !vault |
+    #   $ANSIBLE_VAULT;1.1;AES256
+    #   ...
+
+  roles:
+    - cyberark_auth
+
+# ---------------------------------------------------------------------------
+# Policy matrix — users × policy definitions
+# ---------------------------------------------------------------------------
+- name: Manage per-user on-prem Linux SSH policies
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    cyberark_identity_tenant: "YOUR_TENANT_ID"
+    cyberark_subdomain: "YOUR_SUBDOMAIN"
+    cyberark_validate_certs: true
+
+    # Playbook-level state — override with -e _sia_policy_state=absent to remove all.
+    # Uses a staging name to avoid a recursive self-reference when passed into the role.
+    _sia_policy_state: present
+
+    # ---------------------------------------------------------------------------
+    # Users to onboard — username must match the vaulted account exactly.
+    # The role resolves each to a full principal via the Identity API.
+    # ---------------------------------------------------------------------------
+    target_users:
+      - username: john.smith@example.com
+        display_name: "John Smith"
+      - username: jane.doe@example.com
+        display_name: "Jane Doe"
+      - username: bob.jones@example.com
+        display_name: "Bob Jones"
+
+    # ---------------------------------------------------------------------------
+    # Policy templates — applied identically to every user in target_users.
+    # Each produces one policy per user with the name:
+    #   "{{ display_name }} - {{ name_suffix }}"
+    # ---------------------------------------------------------------------------
+    policy_definitions:
+
+      # -- 1. Broad access: any host in the corporate domain -------------------
+      - name_suffix: "On-Prem SSH (Domain Wildcard)"
+        description: "SSH to all Linux hosts in example.internal"
+        tags:
+          - linux
+          - onprem
+          - ssh
+        entitlement:
+          targetCategory: VM
+          locationType: FQDN/IP
+          policyType: Recurring
+        conditions:
+          accessWindow:
+            daysOfTheWeek: [1, 2, 3, 4, 5]   # Mon–Fri
+            fromHour: "08:00"
+            toHour: "18:00"
+          maxSessionDuration: 4
+        idle_time: 30
+        targets:
+          FQDN/IP:
+            fqdnRules:
+              - operator: WILDCARD
+                computernamePattern: "*.example.internal"
+                domain: "example.internal"
+            ipRules: []
+        behavior:
+          connectAs:
+            ssh:
+              username: svc_sia_linux
+
+      # -- 2. Restricted access: specific production hosts only ----------------
+      - name_suffix: "On-Prem SSH (Production Hosts)"
+        description: "SSH restricted to named production hosts"
+        tags:
+          - linux
+          - onprem
+          - ssh
+          - production
+        entitlement:
+          targetCategory: VM
+          locationType: FQDN/IP
+          policyType: Recurring
+        conditions:
+          accessWindow:
+            daysOfTheWeek: [1, 2, 3, 4, 5]
+            fromHour: "08:00"
+            toHour: "18:00"
+          maxSessionDuration: 4
+        idle_time: 30
+        targets:
+          FQDN/IP:
+            fqdnRules:
+              - operator: EXACTLY
+                computernamePattern: "web01.example.internal"
+                domain: "example.internal"
+              - operator: PREFIX
+                computernamePattern: "app-"
+                domain: "example.internal"
+            ipRules: []
+        behavior:
+          connectAs:
+            ssh:
+              username: svc_sia_linux
+
+      # -- 3. Scoped access: hosts matching a naming convention (PREFIX + CONTAINS)
+      - name_suffix: "On-Prem SSH (Legacy Hosts)"
+        description: "SSH to legacy Linux hosts identified by naming pattern"
+        tags:
+          - linux
+          - onprem
+          - ssh
+          - legacy
+        entitlement:
+          targetCategory: VM
+          locationType: FQDN/IP
+          policyType: Recurring
+        conditions:
+          accessWindow:
+            daysOfTheWeek: [1, 2, 3, 4, 5]
+            fromHour: "08:00"
+            toHour: "18:00"
+          maxSessionDuration: 4
+        idle_time: 30
+        targets:
+          FQDN/IP:
+            fqdnRules:
+              # All hosts whose name starts with "legacy-"
+              - operator: PREFIX
+                computernamePattern: "legacy-"
+                domain: "example.internal"
+              # All hosts whose name contains "rhel"
+              - operator: CONTAINS
+                computernamePattern: "rhel"
+                domain: "example.internal"
+            ipRules: []
+        behavior:
+          connectAs:
+            ssh:
+              username: svc_sia_linux
+
+      # -- 4. Elevated access: on-demand with approval -------------------------
+      # Two API constraints apply here:
+      #   1. accessWindow must be omitted when accessApproval.required is true.
+      #   2. All fqdnRules must use operator: EXACTLY — the API rejects wildcards
+      #      or prefix/contains operators in dual-control (approval) policies.
+      - name_suffix: "On-Prem SSH (Approval Required)"
+        description: "On-demand SSH to sensitive production hosts — requires approval"
+        tags:
+          - linux
+          - onprem
+          - ssh
+          - approval-required
+        entitlement:
+          targetCategory: VM
+          locationType: FQDN/IP
+          policyType: OnDemand
+        conditions:
+          maxSessionDuration: 2
+        idle_time: 15
+        # Approver is a shared Identity role — constant across all users.
+        access_approval:
+          required: true
+          approvers:
+            - id: 7c8d9e0f-1a2b-3c4d-5e6f-7a8b9c0d1e2f
+              name: "SIA - Access Approvers"
+              sourceDirectoryName: Identity
+              sourceDirectoryId: Identity
+              type: ROLE
+        targets:
+          FQDN/IP:
+            fqdnRules:
+              # Approval policies require EXACTLY — wildcards are rejected by the API.
+              - operator: EXACTLY
+                computernamePattern: "bastion01.prod.example.internal"
+                domain: "prod.example.internal"
+              - operator: EXACTLY
+                computernamePattern: "bastion02.prod.example.internal"
+                domain: "prod.example.internal"
+            ipRules: []
+        behavior:
+          connectAs:
+            ssh:
+              username: svc_sia_linux
+
+  tasks:
+    - name: Apply SIA policy
+      include_role:
+        name: cyberark_sia_policy_management
+      vars:
+        cyberark_sia_policy_name: "{{ item[1].display_name }} - {{ item[0].name_suffix }}"
+        cyberark_sia_policy_description: >-
+          {{ item[0].description }} for {{ item[1].display_name }}
+        cyberark_sia_policy_state: "{{ _sia_policy_state }}"
+        cyberark_sia_policy_tags: "{{ item[0].tags }}"
+        cyberark_sia_policy_entitlement: "{{ item[0].entitlement }}"
+        cyberark_sia_policy_principal_usernames:
+          - "{{ item[1].username }}"
+        cyberark_sia_policy_conditions: "{{ item[0].conditions }}"
+        cyberark_sia_policy_idle_time: "{{ item[0].idle_time }}"
+        cyberark_sia_policy_targets: "{{ item[0].targets }}"
+        cyberark_sia_policy_behavior: "{{ item[0].behavior }}"
+        cyberark_sia_policy_access_approval: "{{ item[0].access_approval | default(omit) }}"
+      loop: "{{ policy_definitions | product(target_users) | list }}"
+      loop_control:
+        label: "{{ item[1].display_name }} / {{ item[0].name_suffix }}"

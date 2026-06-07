@@ -1,0 +1,270 @@
+---
+# Example: direct API operations against the SIA policy endpoint.
+#
+# Demonstrates four discrete operations as separate plays:
+#   1. Get all policies (with optional filtering)
+#   2. Get a single policy by name
+#   3. Create a new policy (principal resolved from vaulted account username)
+#   4. Update an existing policy
+#
+# Run:
+#   ansible-playbook examples/policy_operations.yml \
+#     -e cyberark_identity_tenant=YOUR_TENANT_ID \
+#     -e cyberark_subdomain=YOUR_SUBDOMAIN \
+#     --vault-password-file ~/.vault_pass
+
+- name: Authenticate to CyberArk
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    cyberark_identity_tenant: "YOUR_TENANT_ID"
+    cyberark_subdomain: "YOUR_SUBDOMAIN"
+    # cyberark_client_id: !vault |
+    #   $ANSIBLE_VAULT;1.1;AES256
+    #   ...
+    # cyberark_client_secret: !vault |
+    #   $ANSIBLE_VAULT;1.1;AES256
+    #   ...
+
+  roles:
+    - cyberark_auth
+
+# ---------------------------------------------------------------------------
+# Play 1 — Get all policies (paginated, with optional filter)
+# ---------------------------------------------------------------------------
+- name: Get all SIA policies
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    cyberark_subdomain: "YOUR_SUBDOMAIN"
+    cyberark_validate_certs: true
+
+    # Optional: filter results.  Leave empty to retrieve all policies.
+    # Supported fields: policyTags, identities, targetCategory, status, locationType
+    # Example: "filter=((targetCategory eq 'VM') and (status eq 'active'))"
+    _sia_policy_filter: ""
+
+    # Optional: free-text search on policy name and description.
+    _sia_policy_search_query: ""
+
+  tasks:
+    - name: Get all policies (first page)
+      uri:
+        url: >-
+          https://{{ cyberark_subdomain }}.uap.cyberark.cloud/api/policies?limit=50{{
+            '&filter=' + (_sia_policy_filter | urlencode) if _sia_policy_filter | length > 0 else ''
+          }}{{
+            '&q=' + (_sia_policy_search_query | urlencode) if _sia_policy_search_query | length > 0 else ''
+          }}
+        method: GET
+        headers:
+          Authorization: "Bearer {{ cyberark_token }}"
+        status_code: [200]
+        timeout: 30
+        validate_certs: "{{ cyberark_validate_certs }}"
+      register: _sia_all_policies
+      delegate_to: localhost
+
+    - name: Show policy summary
+      debug:
+        msg: >-
+          Total policies: {{ _sia_all_policies.json.total }}.
+          Retrieved {{ _sia_all_policies.json.results | length }} in this page.
+          Next token: {{ _sia_all_policies.json.nextToken | default('none') }}
+
+    - name: Show all policy names
+      debug:
+        msg: "{{ _sia_all_policies.json.results | map(attribute='name', default='(unknown)') | list }}"
+
+# ---------------------------------------------------------------------------
+# Play 2 — Get a single policy by name
+# ---------------------------------------------------------------------------
+- name: Get a single SIA policy by name
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    cyberark_subdomain: "YOUR_SUBDOMAIN"
+    cyberark_validate_certs: true
+    _sia_target_policy_name: "john.smith - AWS EC2 SSH"
+
+  tasks:
+    - name: Search for policy by name
+      uri:
+        url: "https://{{ cyberark_subdomain }}.uap.cyberark.cloud/api/policies?q={{ _sia_target_policy_name | urlencode }}&limit=50"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ cyberark_token }}"
+        status_code: [200]
+        timeout: 30
+        validate_certs: "{{ cyberark_validate_certs }}"
+      register: _sia_policy_search
+      delegate_to: localhost
+
+    - name: Find exact name match and extract policy ID
+      set_fact:
+        _sia_policy_id: >-
+          {%- set ns = namespace(pid='') -%}
+          {%- for p in _sia_policy_search.json.results -%}
+            {%- set pname = p.get('name', p.get('metadata', {}).get('name', '')) -%}
+            {%- if pname == _sia_target_policy_name -%}
+              {%- set ns.pid = p.get('policyId', p.get('metadata', {}).get('policyId', '')) -%}
+            {%- endif -%}
+          {%- endfor -%}
+          {{ ns.pid }}
+      delegate_to: localhost
+
+    - name: Fail if policy not found
+      fail:
+        msg: "Policy '{{ _sia_target_policy_name }}' not found."
+      when: _sia_policy_id | trim | length == 0
+
+    - name: Get full policy details
+      uri:
+        url: "https://{{ cyberark_subdomain }}.uap.cyberark.cloud/api/policies/{{ _sia_policy_id }}"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ cyberark_token }}"
+        status_code: [200]
+        timeout: 30
+        validate_certs: "{{ cyberark_validate_certs }}"
+      register: _sia_policy_detail
+      delegate_to: localhost
+
+    - name: Show full policy detail
+      debug:
+        var: _sia_policy_detail.json
+
+# ---------------------------------------------------------------------------
+# Play 3 — Create a new policy (principal resolved from vaulted account username)
+# ---------------------------------------------------------------------------
+- name: Create a new SIA access control policy
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    cyberark_identity_tenant: "YOUR_TENANT_ID"
+    cyberark_subdomain: "YOUR_SUBDOMAIN"
+    cyberark_validate_certs: true
+
+    cyberark_sia_policy_name: "john.smith - AWS EC2 SSH"
+    cyberark_sia_policy_description: "Business-hours SSH to production EC2 instances for john.smith"
+    cyberark_sia_policy_state: present
+    cyberark_sia_policy_tags:
+      - linux
+      - aws
+      - production
+
+    cyberark_sia_policy_entitlement:
+      targetCategory: VM
+      locationType: AWS
+      policyType: Recurring
+
+    # Username matches the account stored in the CyberArk vault.
+    # The role resolves this to a full principal via the Identity API.
+    cyberark_sia_policy_principal_usernames:
+      - john.smith@example.com
+
+    cyberark_sia_policy_conditions:
+      accessWindow:
+        daysOfTheWeek: [1, 2, 3, 4, 5]
+        fromHour: "08:00"
+        toHour: "18:00"
+      maxSessionDuration: 4
+
+    cyberark_sia_policy_idle_time: 30
+
+    cyberark_sia_policy_targets:
+      AWS:
+        accountIds: []
+        vpcIds: []
+        regions:
+          - eu-west-1
+          - eu-west-2
+        tags:
+          - key: Environment
+            value:
+              - production
+
+    cyberark_sia_policy_behavior:
+      connectAs:
+        ssh:
+          username: ec2-user
+
+  roles:
+    - cyberark_sia_policy_management
+
+  tasks:
+    - name: Show created policy
+      debug:
+        msg:
+          - "Policy created/confirmed — ID: {{ cyberark_sia_policy_id }}"
+          - "Resolved principal: {{ cyberark_sia_policy_principals }}"
+
+# ---------------------------------------------------------------------------
+# Play 4 — Update an existing policy (same role, same state — idempotent)
+# ---------------------------------------------------------------------------
+- name: Update an existing SIA access control policy
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    cyberark_identity_tenant: "YOUR_TENANT_ID"
+    cyberark_subdomain: "YOUR_SUBDOMAIN"
+    cyberark_validate_certs: true
+
+    # Same policy name — the role finds the existing policy and PUTs the update.
+    cyberark_sia_policy_name: "john.smith - AWS EC2 SSH"
+    cyberark_sia_policy_description: "Extended-hours SSH to production EC2 instances (updated)"
+    cyberark_sia_policy_state: present
+    cyberark_sia_policy_tags:
+      - linux
+      - aws
+      - production
+      - updated
+
+    cyberark_sia_policy_entitlement:
+      targetCategory: VM
+      locationType: AWS
+      policyType: Recurring
+
+    cyberark_sia_policy_principal_usernames:
+      - john.smith@example.com
+
+    # Extended hours — change from 08:00–18:00 to 07:00–20:00
+    cyberark_sia_policy_conditions:
+      accessWindow:
+        daysOfTheWeek: [1, 2, 3, 4, 5]
+        fromHour: "07:00"
+        toHour: "20:00"
+      maxSessionDuration: 8
+
+    cyberark_sia_policy_idle_time: 60
+
+    cyberark_sia_policy_targets:
+      AWS:
+        accountIds: []
+        vpcIds: []
+        regions:
+          - eu-west-1
+          - eu-west-2
+          - us-east-1
+        tags:
+          - key: Environment
+            value:
+              - production
+
+    cyberark_sia_policy_behavior:
+      connectAs:
+        ssh:
+          username: ec2-user
+
+  roles:
+    - cyberark_sia_policy_management
+
+  tasks:
+    - name: Show updated policy ID
+      debug:
+        msg: "Policy updated — ID: {{ cyberark_sia_policy_id }}"

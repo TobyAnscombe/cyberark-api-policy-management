@@ -1,0 +1,209 @@
+---
+# Example: manage multiple SIA policies of different types in a single playbook.
+#
+# Demonstrates VM, DB, Cloud Console (AWS IAM), and Entra Group policy creation.
+# The role is called once per policy using include_role in a loop.
+#
+# Each policy is assigned a purpose-specific CyberArk Identity role as its principal
+# (type: ROLE, sourceDirectoryName: Identity).  Create these Identity roles first
+# using the cyberark_group_management role, then add your directory users or Entra
+# groups as members of each role.  The SIA policies never need to change when
+# team membership changes.
+#
+# Recommended Identity roles to pre-create:
+#   - SIA - Linux Server Administrators
+#   - SIA - Database Administrators
+#   - SIA - AWS Cloud Engineers
+#   - SIA - Identity Access Managers
+#   - SIA - Access Approvers
+#
+# Run:
+#   ansible-playbook examples/multiple_policies.yml \
+#     -e cyberark_identity_tenant=YOUR_TENANT_ID \
+#     -e cyberark_subdomain=YOUR_SUBDOMAIN \
+#     --vault-password-file ~/.vault_pass
+
+- name: Manage multiple CyberArk SIA policies
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    cyberark_identity_tenant: "YOUR_TENANT_ID"
+    cyberark_subdomain: "YOUR_SUBDOMAIN"
+    # cyberark_client_id: !vault |  ...
+    # cyberark_client_secret: !vault |  ...
+
+    # ---------------------------------------------------------------------------
+    # Identity role anchors — replace IDs with those from your tenant.
+    # Retrieve role IDs from CyberArk Identity: Admin > Core Services > Roles.
+    # ---------------------------------------------------------------------------
+    _role_linux_admins: &role_linux_admins
+      id: 8a3f1b2c_4d5e_6f7a_8b9c_0d1e2f3a4b5c
+      name: "SIA - Linux Server Administrators"
+      sourceDirectoryName: Identity
+      sourceDirectoryId: Identity
+      type: ROLE
+
+    _role_dba: &role_dba
+      id: 2d3e4f5a_6b7c_8d9e_0f1a_2b3c4d5e6f7a
+      name: "SIA - Database Administrators"
+      sourceDirectoryName: Identity
+      sourceDirectoryId: Identity
+      type: ROLE
+
+    _role_aws_engineers: &role_aws_engineers
+      id: 3e4f5a6b_7c8d_9e0f_1a2b_3c4d5e6f7a8b
+      name: "SIA - AWS Cloud Engineers"
+      sourceDirectoryName: Identity
+      sourceDirectoryId: Identity
+      type: ROLE
+
+    _role_iam_managers: &role_iam_managers
+      id: 6b7c8d9e_0f1a_2b3c_4d5e_6f7a8b9c0d1e
+      name: "SIA - Identity Access Managers"
+      sourceDirectoryName: Identity
+      sourceDirectoryId: Identity
+      type: ROLE
+
+    _role_approvers: &role_approvers
+      id: 7c8d9e0f_1a2b_3c4d_5e6f_7a8b9c0d1e2f
+      name: "SIA - Access Approvers"
+      sourceDirectoryName: Identity
+      sourceDirectoryId: Identity
+      type: ROLE
+
+    sia_policies:
+
+      # -----------------------------------------------------------------------
+      # VM policy — SSH to AWS EC2 instances
+      # -----------------------------------------------------------------------
+      - name: "Linux Server Administrators - AWS EC2 SSH"
+        description: "SSH access to all AWS regions for Linux server administrators"
+        state: present
+        entitlement:
+          targetCategory: VM
+          locationType: AWS
+          policyType: Recurring
+        principals:
+          - *role_linux_admins
+        conditions:
+          accessWindow:
+            daysOfTheWeek: [1, 2, 3, 4, 5]
+            fromHour: "08:00"
+            toHour: "18:00"
+          maxSessionDuration: 8
+        idle_time: 30
+        targets:
+          AWS:
+            accountIds: []
+            vpcIds: []
+            regions: []
+            tags: []
+        behavior:
+          connectAs:
+            ssh:
+              username: ec2-user
+
+      # -----------------------------------------------------------------------
+      # DB policy — MySQL access with local DB auth
+      # -----------------------------------------------------------------------
+      - name: "Database Administrators - Production MySQL"
+        description: "MySQL access for database administrators"
+        state: present
+        entitlement:
+          targetCategory: DB
+          locationType: FQDN/IP
+          policyType: Recurring
+        principals:
+          - *role_dba
+        conditions:
+          accessWindow:
+            daysOfTheWeek: [1, 2, 3, 4, 5]
+            fromHour: "09:00"
+            toHour: "17:00"
+          maxSessionDuration: 2
+        idle_time: 10
+        targets:
+          FQDN/IP:
+            instances:
+              - instanceName: prod-mysql-01
+                instanceId: "197011"
+                instanceType: MySQL
+                authenticationMethod: db_auth
+                profile:
+                  roles:
+                    - readonly
+                    - hr
+        behavior: {}
+
+      # -----------------------------------------------------------------------
+      # Cloud Console policy — AWS IAM role access
+      # -----------------------------------------------------------------------
+      - name: "AWS Cloud Engineers - ReadOnly Console"
+        description: "AWS console read-only access via IAM role"
+        state: present
+        entitlement:
+          targetCategory: Cloud Console
+          locationType: AWS
+          policyType: Recurring
+        principals:
+          - *role_aws_engineers
+        conditions:
+          accessWindow:
+            daysOfTheWeek: [0, 1, 2, 3, 4, 5, 6]
+            fromHour: "00:00"
+            toHour: "00:00"
+          maxSessionDuration: 1
+        idle_time: 0
+        targets:
+          targets:
+            - roleId: arn:aws:iam::123456789012:role/ReadOnlyAccess
+              workspaceId: "123456789012"
+        behavior: {}
+
+      # -----------------------------------------------------------------------
+      # Entra Group assignment policy — on-demand with access approval
+      # -----------------------------------------------------------------------
+      - name: "Identity Access Managers - Azure Entra Group"
+        description: "On-demand Entra group membership — requires approval from Access Approvers"
+        state: present
+        entitlement:
+          targetCategory: Groups
+          locationType: Azure
+          policyType: OnDemand
+        principals:
+          - *role_iam_managers
+        conditions:
+          # accessWindow is intentionally omitted — accessApproval.required: true
+          # mandates that the two are mutually exclusive
+          maxSessionDuration: 8
+          accessApproval:
+            required: true
+            approvers:
+              - *role_approvers
+        idle_time: 0
+        targets:
+          - groupId: c63819e2-2397-4faa-850f-4abde34e52fb
+            directoryId: 280a06f4-3f9b-4910-8967-053a914e314e
+        behavior: {}
+
+  roles:
+    - cyberark_auth
+
+  tasks:
+    - name: Manage SIA policy
+      include_role:
+        name: cyberark_sia_policy_management
+      vars:
+        cyberark_sia_policy_name: "{{ item.name }}"
+        cyberark_sia_policy_description: "{{ item.description | default('') }}"
+        cyberark_sia_policy_state: "{{ item.state }}"
+        cyberark_sia_policy_entitlement: "{{ item.entitlement }}"
+        cyberark_sia_policy_principals: "{{ item.principals }}"
+        cyberark_sia_policy_conditions: "{{ item.conditions }}"
+        cyberark_sia_policy_idle_time: "{{ item.idle_time | default(10) }}"
+        cyberark_sia_policy_targets: "{{ item.targets }}"
+        cyberark_sia_policy_behavior: "{{ item.behavior | default({}) }}"
+      loop: "{{ sia_policies }}"
+      loop_control:
+        label: "{{ item.name }}"

@@ -1,0 +1,172 @@
+---
+# ---------------------------------------------------------------------------
+# Look up existing policy by name
+# ---------------------------------------------------------------------------
+- name: Search for existing policy by name
+  uri:
+    url: "https://{{ cyberark_subdomain }}.uap.cyberark.cloud/api/policies?q={{ cyberark_sia_policy_name | urlencode }}&limit=50"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ cyberark_token }}"
+    status_code: [200]
+    timeout: 30
+    validate_certs: "{{ cyberark_validate_certs }}"
+  register: _cyberark_sia_policy_search
+  run_once: true
+  delegate_to: localhost
+
+# The list endpoint returns partial policy details.  Iterate results to find
+# an exact name match — the free-text 'q' parameter may return false positives.
+- name: Extract existing policy ID
+  set_fact:
+    _cyberark_sia_policy_id: >-
+      {%- set ns = namespace(pid='') -%}
+      {%- for p in _cyberark_sia_policy_search.json.results -%}
+        {%- set pname = p.get('name', p.get('metadata', {}).get('name', '')) -%}
+        {%- if pname == cyberark_sia_policy_name -%}
+          {%- set ns.pid = p.get('policyId', p.get('metadata', {}).get('policyId', '')) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ ns.pid }}
+  run_once: true
+  delegate_to: localhost
+
+# ---------------------------------------------------------------------------
+# Build policy body
+# ---------------------------------------------------------------------------
+- name: Build policy metadata
+  set_fact:
+    _cyberark_sia_policy_metadata: >-
+      {{
+        {
+          'name': cyberark_sia_policy_name,
+          'description': cyberark_sia_policy_description,
+          'status': {'status': cyberark_sia_policy_status},
+          'policyTags': cyberark_sia_policy_tags,
+          'policyEntitlement': cyberark_sia_policy_entitlement,
+          'timeZone': cyberark_sia_policy_time_zone,
+        }
+        | combine({'timeFrame': cyberark_sia_policy_time_frame} if cyberark_sia_policy_time_frame | length > 0 else {})
+        | combine({'policyId': _cyberark_sia_policy_id} if _cyberark_sia_policy_id | trim | length > 0 else {})
+      }}
+  run_once: true
+  delegate_to: localhost
+
+# Merge idleTime into conditions for infrastructure policy types (VM, DB).
+- name: Build policy conditions
+  set_fact:
+    _cyberark_sia_policy_conditions: >-
+      {{
+        cyberark_sia_policy_conditions
+        | combine(
+            {'accessWindow': cyberark_sia_policy_conditions.accessWindow | combine({
+              'fromHour': cyberark_sia_policy_conditions.accessWindow.fromHour[:5],
+              'toHour':   cyberark_sia_policy_conditions.accessWindow.toHour[:5]
+            })}
+            if cyberark_sia_policy_conditions.accessWindow is defined
+            else {}
+          )
+        | combine(
+            {'idleTime': cyberark_sia_policy_idle_time}
+            if cyberark_sia_policy_entitlement.targetCategory in ['VM', 'DB']
+            else {}
+          )
+        | combine(
+            {'accessApproval': cyberark_sia_policy_access_approval}
+            if cyberark_sia_policy_access_approval is defined
+            else {}
+          )
+      }}
+  run_once: true
+  delegate_to: localhost
+
+- name: Build policy body
+  set_fact:
+    _cyberark_sia_policy_body: >-
+      {{
+        {
+          'metadata': _cyberark_sia_policy_metadata,
+          'principals': cyberark_sia_policy_principals,
+          'conditions': _cyberark_sia_policy_conditions,
+          'targets': cyberark_sia_policy_targets,
+        }
+        | combine(
+            {'behavior': cyberark_sia_policy_behavior}
+            if cyberark_sia_policy_behavior | length > 0
+            else {}
+          )
+      }}
+  run_once: true
+  delegate_to: localhost
+
+# ---------------------------------------------------------------------------
+# Create or update
+# ---------------------------------------------------------------------------
+- name: Create policy
+  uri:
+    url: "https://{{ cyberark_subdomain }}.uap.cyberark.cloud/api/policies"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ cyberark_token }}"
+    body_format: json
+    body: "{{ _cyberark_sia_policy_body }}"
+    status_code: [200]
+    timeout: 30
+    validate_certs: "{{ cyberark_validate_certs }}"
+  register: _cyberark_sia_policy_create
+  when: _cyberark_sia_policy_id | trim | length == 0
+  run_once: true
+  delegate_to: localhost
+
+- name: Update policy
+  uri:
+    url: "https://{{ cyberark_subdomain }}.uap.cyberark.cloud/api/policies/{{ _cyberark_sia_policy_id }}"
+    method: PUT
+    headers:
+      Authorization: "Bearer {{ cyberark_token }}"
+    body_format: json
+    body: "{{ _cyberark_sia_policy_body }}"
+    status_code: [200]
+    timeout: 30
+    validate_certs: "{{ cyberark_validate_certs }}"
+  register: _cyberark_sia_policy_update
+  when: _cyberark_sia_policy_id | trim | length > 0
+  run_once: true
+  delegate_to: localhost
+
+# ---------------------------------------------------------------------------
+# Expose result as a fact for downstream tasks
+# ---------------------------------------------------------------------------
+- name: Expose created policy as fact
+  set_fact:
+    cyberark_sia_policy_id: "{{ _cyberark_sia_policy_create.json.policyId }}"
+    cyberark_sia_policy_detail: "{{ _cyberark_sia_policy_create.json }}"
+  when: _cyberark_sia_policy_id | trim | length == 0
+  run_once: true
+  delegate_to: localhost
+
+- name: Expose updated policy ID as fact
+  set_fact:
+    cyberark_sia_policy_id: "{{ _cyberark_sia_policy_id }}"
+    cyberark_sia_policy_detail: {}
+  when: _cyberark_sia_policy_id | trim | length > 0
+  run_once: true
+  delegate_to: localhost
+
+# ---------------------------------------------------------------------------
+# Optional validation (Cloud Console policies only)
+# ---------------------------------------------------------------------------
+- name: Trigger policy validation
+  uri:
+    url: "https://{{ cyberark_subdomain }}.uap.cyberark.cloud/api/policies/{{ cyberark_sia_policy_id }}/validate"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ cyberark_token }}"
+    status_code: [200]
+    timeout: 30
+    validate_certs: "{{ cyberark_validate_certs }}"
+  when:
+    - cyberark_sia_policy_validate_after | bool
+    - cyberark_sia_policy_entitlement.targetCategory == 'Cloud Console'
+  run_once: true
+  delegate_to: localhost

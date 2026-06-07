@@ -1,0 +1,69 @@
+---
+- name: Validate required SIA policy management variables
+  assert:
+    that:
+      - cyberark_token is defined
+      - cyberark_token | trim | length > 0
+      - cyberark_subdomain | trim | length > 0
+      - cyberark_sia_policy_name | trim | length > 0
+      - cyberark_sia_policy_state in ['present', 'absent']
+    fail_msg: >-
+      cyberark_token, cyberark_subdomain, and cyberark_sia_policy_name must all be set.
+      cyberark_sia_policy_state must be 'present' or 'absent'.
+  run_once: true
+  delegate_to: localhost
+
+- name: Validate policy entitlement and targets for present state
+  assert:
+    that:
+      - cyberark_sia_policy_entitlement.targetCategory is defined
+      - cyberark_sia_policy_entitlement.locationType is defined
+      - cyberark_sia_policy_targets | length > 0
+    fail_msg: >-
+      cyberark_sia_policy_entitlement (targetCategory, locationType) and
+      cyberark_sia_policy_targets must be set when state is 'present'.
+  when: cyberark_sia_policy_state == 'present'
+  run_once: true
+  delegate_to: localhost
+
+- name: Validate a principal source is provided for present state
+  assert:
+    that:
+      - (cyberark_sia_policy_principals | length > 0) or
+        (cyberark_sia_policy_principal_usernames | length > 0)
+    fail_msg: >-
+      Either cyberark_sia_policy_principals (full principal objects) or
+      cyberark_sia_policy_principal_usernames (usernames to resolve via
+      Identity API) must be set when state is 'present'.
+  when: cyberark_sia_policy_state == 'present'
+  run_once: true
+  delegate_to: localhost
+
+- name: Validate cyberark_identity_tenant is set for username lookup
+  assert:
+    that:
+      - cyberark_identity_tenant | trim | length > 0
+    fail_msg: >-
+      cyberark_identity_tenant must be set when using
+      cyberark_sia_policy_principal_usernames for principal resolution.
+  when:
+    - cyberark_sia_policy_state == 'present'
+    - cyberark_sia_policy_principal_usernames | length > 0
+  run_once: true
+  delegate_to: localhost
+
+# Resolve usernames to full principal objects via CyberArk Identity API.
+# This sets cyberark_sia_policy_principals and runs before policy_present.yml.
+- name: Resolve principals from CyberArk Identity
+  include_tasks: principal_lookup.yml
+  when:
+    - cyberark_sia_policy_state == 'present'
+    - cyberark_sia_policy_principal_usernames | length > 0
+
+- name: Ensure policy is present
+  include_tasks: policy_present.yml
+  when: cyberark_sia_policy_state == 'present'
+
+- name: Ensure policy is absent
+  include_tasks: policy_absent.yml
+  when: cyberark_sia_policy_state == 'absent'

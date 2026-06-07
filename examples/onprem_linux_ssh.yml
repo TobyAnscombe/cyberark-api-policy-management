@@ -1,0 +1,311 @@
+---
+# Example: SSH access to on-premise Linux machines via FQDN or IP rules.
+#
+# On-premise VM policies use locationType: FQDN/IP.  Targets are matched by:
+#   - fqdnRules  — hostname/FQDN pattern matching (wildcard, exact, prefix, suffix, contains)
+#   - ipRules    — IP address ranges matched to a logical network name
+#
+# Principals are resolved by username via the CyberArk Identity API.
+# This is the correct pattern when the SIA policy is granting access to a
+# vaulted credential — the username on the account becomes the principal.
+# The role queries CyberArk Identity to resolve the id, sourceDirectoryName,
+# and sourceDirectoryId automatically so you do not need to know them in advance.
+#
+# Run:
+#   ansible-playbook examples/onprem_linux_ssh.yml \
+#     -e cyberark_identity_tenant=YOUR_TENANT_ID \
+#     -e cyberark_subdomain=YOUR_SUBDOMAIN \
+#     --vault-password-file ~/.vault_pass
+#
+# requirements.yml (install before running):
+#   roles:
+#     - name: cyberark_auth
+#       src: https://github.com/TobyAnscombe/cyberark-api-management
+#       version: main
+#     - name: cyberark_sia_policy_management
+#       src: https://github.com/TobyAnscombe/cyberark-api-policy-management
+#       version: main
+
+- name: Manage on-premise Linux SSH policies
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    cyberark_identity_tenant: "YOUR_TENANT_ID"
+    cyberark_subdomain: "YOUR_SUBDOMAIN"
+    # cyberark_client_id: !vault |
+    #   $ANSIBLE_VAULT;1.1;AES256
+    #   ...
+    # cyberark_client_secret: !vault |
+    #   $ANSIBLE_VAULT;1.1;AES256
+    #   ...
+
+  roles:
+    - cyberark_auth
+
+# ---------------------------------------------------------------------------
+# Play 1 — FQDN wildcard: all Linux hosts in a domain
+# ---------------------------------------------------------------------------
+- name: SSH policy — all Linux hosts in a domain (wildcard FQDN)
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    cyberark_identity_tenant: "YOUR_TENANT_ID"
+    cyberark_subdomain: "YOUR_SUBDOMAIN"
+    cyberark_validate_certs: true
+
+    cyberark_sia_policy_name: "john.smith - On-Prem SSH (Domain Wildcard)"
+    cyberark_sia_policy_description: "SSH to all Linux hosts in example.internal for john.smith"
+    cyberark_sia_policy_state: present
+    cyberark_sia_policy_tags:
+      - linux
+      - onprem
+      - ssh
+
+    cyberark_sia_policy_entitlement:
+      targetCategory: VM
+      locationType: FQDN/IP
+      policyType: Recurring
+
+    # Username matches the vaulted account.  The role resolves this to a full
+    # principal object via the CyberArk Identity API.
+    cyberark_sia_policy_principal_usernames:
+      - john.smith@example.com
+
+    cyberark_sia_policy_conditions:
+      accessWindow:
+        daysOfTheWeek: [1, 2, 3, 4, 5]   # Mon–Fri
+        fromHour: "08:00"
+        toHour: "18:00"
+      maxSessionDuration: 4
+
+    cyberark_sia_policy_idle_time: 30
+
+    cyberark_sia_policy_targets:
+      FQDN/IP:
+        fqdnRules:
+          # Match any hostname ending in .example.internal
+          - operator: WILDCARD
+            computernamePattern: "*.example.internal"
+            domain: "example.internal"
+        ipRules: []
+
+    cyberark_sia_policy_behavior:
+      connectAs:
+        ssh:
+          username: svc_sia_linux   # local user the session connects as
+
+  roles:
+    - cyberark_sia_policy_management
+
+  tasks:
+    - name: Show policy ID
+      debug:
+        msg: "Policy ID: {{ cyberark_sia_policy_id }}"
+
+# ---------------------------------------------------------------------------
+# Play 2 — FQDN exact + prefix: named hosts only
+# ---------------------------------------------------------------------------
+- name: SSH policy — named production hosts only (exact and prefix FQDN)
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    cyberark_identity_tenant: "YOUR_TENANT_ID"
+    cyberark_subdomain: "YOUR_SUBDOMAIN"
+    cyberark_validate_certs: true
+
+    cyberark_sia_policy_name: "john.smith - On-Prem SSH (Named Hosts)"
+    cyberark_sia_policy_description: "SSH restricted to specific production hosts for john.smith"
+    cyberark_sia_policy_state: present
+    cyberark_sia_policy_tags:
+      - linux
+      - onprem
+      - ssh
+      - production
+
+    cyberark_sia_policy_entitlement:
+      targetCategory: VM
+      locationType: FQDN/IP
+      policyType: Recurring
+
+    cyberark_sia_policy_principal_usernames:
+      - john.smith@example.com
+
+    cyberark_sia_policy_conditions:
+      accessWindow:
+        daysOfTheWeek: [1, 2, 3, 4, 5]
+        fromHour: "08:00"
+        toHour: "18:00"
+      maxSessionDuration: 4
+
+    cyberark_sia_policy_idle_time: 30
+
+    cyberark_sia_policy_targets:
+      FQDN/IP:
+        fqdnRules:
+          # Exact match — a single named host
+          - operator: EXACTLY
+            computernamePattern: "web01.example.internal"
+            domain: "example.internal"
+          # Prefix match — all hosts whose name starts with "app-"
+          - operator: PREFIX
+            computernamePattern: "app-"
+            domain: "example.internal"
+        ipRules: []
+
+    cyberark_sia_policy_behavior:
+      connectAs:
+        ssh:
+          username: svc_sia_linux
+
+  roles:
+    - cyberark_sia_policy_management
+
+  tasks:
+    - name: Show policy ID
+      debug:
+        msg: "Policy ID: {{ cyberark_sia_policy_id }}"
+
+# ---------------------------------------------------------------------------
+# Play 3 — IP range rules: targets matched by network address
+# ---------------------------------------------------------------------------
+- name: SSH policy — on-prem Linux hosts by IP range
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    cyberark_identity_tenant: "YOUR_TENANT_ID"
+    cyberark_subdomain: "YOUR_SUBDOMAIN"
+    cyberark_validate_certs: true
+
+    cyberark_sia_policy_name: "john.smith - On-Prem SSH (IP Range)"
+    cyberark_sia_policy_description: "SSH to on-prem Linux hosts in the 10.10.x.x production network"
+    cyberark_sia_policy_state: present
+    cyberark_sia_policy_tags:
+      - linux
+      - onprem
+      - ssh
+      - ip-rule
+
+    cyberark_sia_policy_entitlement:
+      targetCategory: VM
+      locationType: FQDN/IP
+      policyType: Recurring
+
+    cyberark_sia_policy_principal_usernames:
+      - john.smith@example.com
+
+    cyberark_sia_policy_conditions:
+      accessWindow:
+        daysOfTheWeek: [1, 2, 3, 4, 5]
+        fromHour: "08:00"
+        toHour: "18:00"
+      maxSessionDuration: 4
+
+    cyberark_sia_policy_idle_time: 30
+
+    cyberark_sia_policy_targets:
+      FQDN/IP:
+        fqdnRules: []
+        ipRules:
+          # EXACTLY — match a specific IP address
+          - logicalName: "prod-web-01"
+            operator: EXACTLY
+            ipAddresses:
+              - "10.10.1.100"
+          # WILDCARD — match a subnet using wildcard notation
+          - logicalName: "prod-app-subnet"
+            operator: WILDCARD
+            ipAddresses:
+              - "10.10.2.0/24"
+
+    cyberark_sia_policy_behavior:
+      connectAs:
+        ssh:
+          username: svc_sia_linux
+
+  roles:
+    - cyberark_sia_policy_management
+
+  tasks:
+    - name: Show policy ID
+      debug:
+        msg: "Policy ID: {{ cyberark_sia_policy_id }}"
+
+# ---------------------------------------------------------------------------
+# Play 4 — Combined FQDN + IP rules with on-demand access approval
+# ---------------------------------------------------------------------------
+- name: SSH policy — on-prem Linux (FQDN + IP, approval required)
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    cyberark_identity_tenant: "YOUR_TENANT_ID"
+    cyberark_subdomain: "YOUR_SUBDOMAIN"
+    cyberark_validate_certs: true
+
+    cyberark_sia_policy_name: "john.smith - On-Prem SSH (Approval Required)"
+    cyberark_sia_policy_description: >-
+      On-demand SSH to production Linux hosts for john.smith —
+      requires approval before access is granted
+    cyberark_sia_policy_state: present
+    cyberark_sia_policy_tags:
+      - linux
+      - onprem
+      - ssh
+      - approval-required
+
+    cyberark_sia_policy_entitlement:
+      targetCategory: VM
+      locationType: FQDN/IP
+      policyType: OnDemand
+
+    # The requestor — matches the vaulted account username.
+    cyberark_sia_policy_principal_usernames:
+      - john.smith@example.com
+
+    # When accessApproval.required is true, accessWindow must be omitted —
+    # the two are mutually exclusive in the CyberArk SIA API.
+    cyberark_sia_policy_conditions:
+      maxSessionDuration: 2
+
+    # Approver is a CyberArk Identity role whose members handle requests.
+    # This uses Option A (full principal object) since the approver is a role,
+    # not an individual user tied to a vaulted account.
+    cyberark_sia_policy_access_approval:
+      required: true
+      approvers:
+        - id: 7c8d9e0f_1a2b_3c4d_5e6f_7a8b9c0d1e2f
+          name: "SIA - Access Approvers"
+          sourceDirectoryName: Identity
+          sourceDirectoryId: Identity
+          type: ROLE
+
+    cyberark_sia_policy_idle_time: 15
+
+    cyberark_sia_policy_targets:
+      FQDN/IP:
+        fqdnRules:
+          - operator: WILDCARD
+            computernamePattern: "*.prod.example.internal"
+            domain: "prod.example.internal"
+        ipRules:
+          - logicalName: "prod-mgmt-subnet"
+            operator: WILDCARD
+            ipAddresses:
+              - "10.20.0.0/24"
+
+    cyberark_sia_policy_behavior:
+      connectAs:
+        ssh:
+          username: svc_sia_linux
+
+  roles:
+    - cyberark_sia_policy_management
+
+  tasks:
+    - name: Show policy ID
+      debug:
+        msg: "Policy ID: {{ cyberark_sia_policy_id }}"

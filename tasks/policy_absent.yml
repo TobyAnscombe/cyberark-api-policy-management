@@ -1,0 +1,40 @@
+---
+- name: Search for existing policy by name
+  uri:
+    url: "https://{{ cyberark_subdomain }}.uap.cyberark.cloud/api/policies?q={{ cyberark_sia_policy_name | urlencode }}&limit=50"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ cyberark_token }}"
+    status_code: [200]
+    timeout: 30
+    validate_certs: "{{ cyberark_validate_certs }}"
+  register: _cyberark_sia_policy_search
+  run_once: true
+  delegate_to: localhost
+
+- name: Extract existing policy ID
+  set_fact:
+    _cyberark_sia_policy_id: >-
+      {%- set ns = namespace(pid='') -%}
+      {%- for p in _cyberark_sia_policy_search.json.results -%}
+        {%- set pname = p.get('name', p.get('metadata', {}).get('name', '')) -%}
+        {%- if pname == cyberark_sia_policy_name -%}
+          {%- set ns.pid = p.get('policyId', p.get('metadata', {}).get('policyId', '')) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ ns.pid }}
+  run_once: true
+  delegate_to: localhost
+
+- name: Delete policy
+  uri:
+    url: "https://{{ cyberark_subdomain }}.uap.cyberark.cloud/api/policies/{{ _cyberark_sia_policy_id }}"
+    method: DELETE
+    headers:
+      Authorization: "Bearer {{ cyberark_token }}"
+    status_code: [200]
+    timeout: 30
+    validate_certs: "{{ cyberark_validate_certs }}"
+  when: _cyberark_sia_policy_id | trim | length > 0
+  run_once: true
+  delegate_to: localhost

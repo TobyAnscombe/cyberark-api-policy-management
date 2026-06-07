@@ -1,0 +1,99 @@
+---
+# Example: authenticate to CyberArk and manage a single SIA access policy.
+#
+# Principals are resolved by username via the CyberArk Identity API.
+# This is the recommended pattern when the SIA policy is granting access to a
+# vaulted credential — pass the account username and the role resolves its
+# id, sourceDirectoryName, and sourceDirectoryId automatically.
+#
+# Run:
+#   ansible-playbook examples/site.yml \
+#     -e cyberark_identity_tenant=YOUR_TENANT_ID \
+#     -e cyberark_subdomain=YOUR_SUBDOMAIN \
+#     --vault-password-file ~/.vault_pass
+#
+# Vault-encrypt your secrets first:
+#   ansible-vault encrypt_string 'my-client-id'     --name cyberark_client_id
+#   ansible-vault encrypt_string 'my-client-secret' --name cyberark_client_secret
+#
+# requirements.yml (install before running):
+#   roles:
+#     - name: cyberark_auth
+#       src: https://github.com/TobyAnscombe/cyberark-api-management
+#       version: main
+#     - name: cyberark_sia_policy_management
+#       src: https://github.com/TobyAnscombe/cyberark-api-policy-management
+#       version: main
+
+- name: Manage CyberArk SIA access control policy
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    cyberark_identity_tenant: "YOUR_TENANT_ID"
+    cyberark_subdomain: "YOUR_SUBDOMAIN"
+    # cyberark_client_id: !vault |
+    #   $ANSIBLE_VAULT;1.1;AES256
+    #   ...
+    # cyberark_client_secret: !vault |
+    #   $ANSIBLE_VAULT;1.1;AES256
+    #   ...
+
+    # ---------------------------------------------------------------------------
+    # VM policy — SSH to AWS EC2 instances
+    # ---------------------------------------------------------------------------
+    cyberark_sia_policy_name: "john.smith - AWS EC2 SSH"
+    cyberark_sia_policy_description: "SSH access to production EC2 instances for john.smith"
+    cyberark_sia_policy_state: present
+    cyberark_sia_policy_tags:
+      - linux
+      - aws
+      - production
+
+    cyberark_sia_policy_entitlement:
+      targetCategory: VM
+      locationType: AWS
+      policyType: Recurring
+
+    # Username matches the account stored in the CyberArk vault.
+    # The role resolves this to a full principal object via the Identity API —
+    # no need to know the user's internal ID or directory details in advance.
+    cyberark_sia_policy_principal_usernames:
+      - john.smith@example.com
+
+    cyberark_sia_policy_conditions:
+      accessWindow:
+        daysOfTheWeek: [1, 2, 3, 4, 5]   # Mon–Fri
+        fromHour: "08:00"
+        toHour: "18:00"
+      maxSessionDuration: 4
+
+    cyberark_sia_policy_idle_time: 30
+
+    cyberark_sia_policy_targets:
+      AWS:
+        accountIds: []        # empty = all accounts
+        vpcIds: []
+        regions:
+          - eu-west-1
+          - eu-west-2
+        tags:
+          - key: Environment
+            value:
+              - production
+
+    cyberark_sia_policy_behavior:
+      connectAs:
+        ssh:
+          username: ec2-user
+
+  roles:
+    - cyberark_auth
+    - cyberark_sia_policy_management
+
+  tasks:
+    - name: Show resolved principals and policy ID
+      debug:
+        msg:
+          - "Policy ID: {{ cyberark_sia_policy_id }}"
+          - "Resolved principals: {{ cyberark_sia_policy_principals }}"

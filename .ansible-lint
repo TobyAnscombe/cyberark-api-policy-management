@@ -1,0 +1,7 @@
+profile: basic
+
+offline: true
+
+mock_roles:
+  - cyberark_auth
+  - cyberark_sia_policy_management

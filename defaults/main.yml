@@ -1,0 +1,230 @@
+---
+# Required — set in playbook vars; cyberark_token is produced by the cyberark_auth role
+cyberark_subdomain: ""
+
+# Required when using cyberark_sia_policy_principal_usernames for principal
+# resolution — the same tenant value used by the cyberark_auth role.
+cyberark_identity_tenant: ""
+
+cyberark_validate_certs: true
+
+# ---------------------------------------------------------------------------
+# Policy identity and state
+# ---------------------------------------------------------------------------
+cyberark_sia_policy_name: ""
+cyberark_sia_policy_state: present   # present | absent
+
+# ---------------------------------------------------------------------------
+# Policy metadata
+# ---------------------------------------------------------------------------
+cyberark_sia_policy_description: ""
+cyberark_sia_policy_tags: []
+cyberark_sia_policy_time_zone: "GMT"
+
+# The timeframe the policy is active.  Leave empty ({}) for unlimited.
+# Set fromTime and toTime (format: 'yyyy-MM-ddTHH:mm:ss') for a bounded window.
+cyberark_sia_policy_time_frame: {}
+
+cyberark_sia_policy_status: "Active"   # Active | Suspended
+
+# ---------------------------------------------------------------------------
+# Policy entitlement (required)
+# ---------------------------------------------------------------------------
+# Defines the category and location of what this policy grants access to.
+#
+#   targetCategory  | locationType   | Use case
+#   ----------------+----------------+----------------------------------------
+#   VM              | AWS            | SSH/RDP to AWS EC2 instances
+#   VM              | Azure          | SSH/RDP to Azure VMs
+#   VM              | GCP            | SSH/RDP to GCP Compute instances
+#   VM              | FQDN/IP        | SSH/RDP to on-prem or non-cloud VMs
+#   DB              | FQDN/IP        | Database access (MySQL, PostgreSQL, etc.)
+#   Cloud Console   | AWS            | AWS IAM / IAM Identity Center access
+#   Cloud Console   | Azure          | Azure resource role / Entra ID role access
+#   Cloud Console   | GCP            | GCP IAM role access
+#   Groups          | Azure          | Entra ID group membership assignment
+#
+cyberark_sia_policy_entitlement:
+  targetCategory: VM
+  locationType: AWS
+  policyType: Recurring   # Recurring | OnDemand
+
+# ---------------------------------------------------------------------------
+# Principal resolution (required — use Option A or Option B, not both)
+# ---------------------------------------------------------------------------
+#
+# Option A — full principal objects.
+# Use when you already know the principal's CyberArk Identity ID and directory
+# details, for example when assigning a CyberArk Identity role (type: ROLE).
+#
+#   cyberark_sia_policy_principals:
+#     - id: 8a3f1b2c_4d5e_6f7a_8b9c_0d1e2f3a4b5c
+#       name: "SIA - Linux Server Administrators"
+#       sourceDirectoryName: Identity
+#       sourceDirectoryId: Identity
+#       type: ROLE
+#
+# Option B — username list (recommended for vaulted credentials).
+# Provide the username(s) exactly as they appear on the vaulted account.
+# The role queries the CyberArk Identity API to resolve each username to its
+# id, sourceDirectoryName, and sourceDirectoryId automatically.
+# cyberark_identity_tenant must be set.
+#
+#   cyberark_sia_policy_principal_usernames:
+#     - john@example.com
+#
+cyberark_sia_policy_principals: []
+cyberark_sia_policy_principal_usernames: []
+
+# ---------------------------------------------------------------------------
+# Conditions
+# ---------------------------------------------------------------------------
+# Access window and session limits.  All days (0=Sun … 6=Sat) with no hour
+# restriction by default.
+#
+# NOTE: If accessApproval.required is true, omit accessWindow from this dict —
+# the API rejects requests that include both.
+#
+cyberark_sia_policy_conditions:
+  accessWindow:
+    daysOfTheWeek: [0, 1, 2, 3, 4, 5, 6]
+    fromHour: "00:00"
+    toHour: "00:00"
+  maxSessionDuration: 1
+
+# Idle timeout in minutes before the session is terminated (VM and DB only).
+# Valid range: 1–120.  Merged into conditions automatically for VM and DB policies.
+cyberark_sia_policy_idle_time: 10
+
+# Access approval gate.  When required: true, also remove accessWindow from
+# cyberark_sia_policy_conditions above.  Leave approvers empty to route to
+# workspace delegates.
+#
+# cyberark_sia_policy_access_approval:
+#   required: false
+#   approvers: []
+
+# ---------------------------------------------------------------------------
+# Targets (required)
+# ---------------------------------------------------------------------------
+# The resources this policy grants access to.  Structure varies by policy type.
+#
+# VM — AWS:
+#   cyberark_sia_policy_targets:
+#     AWS:
+#       accountIds: []          # empty = all accounts
+#       vpcIds: []              # empty = all VPCs
+#       regions: []             # empty = all regions
+#       tags: []                # [{key: Env, value: [prod]}]
+#
+# VM — Azure:
+#   cyberark_sia_policy_targets:
+#     Azure:
+#       subscriptions: []
+#       resourceGroups: []
+#       vnetIds: []
+#       regions: []
+#       tags: []
+#
+# VM — GCP:
+#   cyberark_sia_policy_targets:
+#     GCP:
+#       projects: []
+#       vpcIds: []
+#       regions: []
+#       labels: []
+#
+# VM — FQDN/IP:
+#   cyberark_sia_policy_targets:
+#     FQDN/IP:
+#       fqdnRules:
+#         - operator: WILDCARD
+#           computernamePattern: "*.example.com"
+#           domain: "example.com"
+#       ipRules: []
+#
+# DB:
+#   cyberark_sia_policy_targets:
+#     FQDN/IP:
+#       instances:
+#         - instanceName: my-mysql
+#           instanceId: "12345"
+#           instanceType: MySQL
+#           authenticationMethod: db_auth   # db_auth | ldap_auth | rds_iam_user_auth | oracle_auth | mongo_auth | sqlserver_auth
+#           profile:
+#             roles: [hr, dev]
+#
+# Cloud Console (AWS IAM):
+#   cyberark_sia_policy_targets:
+#     targets:
+#       - roleId: arn:aws:iam::123456789012:role/MyRole
+#         workspaceId: "123456789012"
+#
+# Cloud Console (AWS IAM Identity Center — add orgId):
+#   cyberark_sia_policy_targets:
+#     targets:
+#       - roleId: arn:aws:sso:::permissionSet/ssoins-xxx/ps-yyy
+#         workspaceId: "123456789012"
+#         orgId: "098765432109"
+#
+# Cloud Console (Azure resource role):
+#   cyberark_sia_policy_targets:
+#     targets:
+#       - roleId: /subscriptions/xxx/providers/Microsoft.Authorization/roleDefinitions/yyy
+#         workspaceId: subscriptions/xxx
+#         orgId: <entra-directory-uuid>
+#         workspaceType: Subscription   # Directory | Management Group | Subscription | Resource Group | Resource
+#
+# Cloud Console (GCP):
+#   cyberark_sia_policy_targets:
+#     targets:
+#       - roleId: roles/viewer
+#         workspaceId: my-project
+#         orgId: "123456789"
+#         workspaceType: Project   # Organization | Folder | Project
+#
+# Entra Group assignment:
+#   cyberark_sia_policy_targets:
+#     - groupId: c63819e2-2397-4faa-850f-4abde34e52fb
+#       directoryId: 280a06f4-3f9b-4910-8967-053a914e314e
+#
+cyberark_sia_policy_targets: {}
+
+# ---------------------------------------------------------------------------
+# Behavior (VM policies only)
+# ---------------------------------------------------------------------------
+# The local user profile assumed when connecting to VMs via SSH or RDP.
+#
+# SSH only:
+#   cyberark_sia_policy_behavior:
+#     connectAs:
+#       ssh:
+#         username: ec2-user
+#
+# RDP only:
+#   cyberark_sia_policy_behavior:
+#     connectAs:
+#       rdp:
+#         localEphemeralUser:
+#           assignGroups: [Administrators]
+#           enableEphemeralUserReconnect: false
+#
+# Both SSH and RDP:
+#   cyberark_sia_policy_behavior:
+#     connectAs:
+#       ssh:
+#         username: ec2-user
+#       rdp:
+#         localEphemeralUser:
+#           assignGroups: [Administrators]
+#           enableEphemeralUserReconnect: false
+#
+cyberark_sia_policy_behavior: {}
+
+# ---------------------------------------------------------------------------
+# Post-create/update validation
+# ---------------------------------------------------------------------------
+# Set to true to trigger validation after create or update (Cloud Console only).
+# The role does NOT poll for completion — check GET /policies/{policyId} to
+# confirm the final status.
+cyberark_sia_policy_validate_after: false

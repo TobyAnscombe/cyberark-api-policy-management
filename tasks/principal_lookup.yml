@@ -1,0 +1,83 @@
+---
+# Resolves each username in cyberark_sia_policy_principal_usernames to a full
+# principal object (id, name, sourceDirectoryName, sourceDirectoryId) via the
+# CyberArk Identity RedRock query API, then sets cyberark_sia_policy_principals.
+#
+# This is the right pattern when the principal is the same user referenced by a
+# vaulted account — you pass the account username and the role resolves the rest.
+#
+# All loops use explicit loop_var names so this file is safe to include_tasks
+# from a parent loop (e.g. a cartesian product loop) without variable collision.
+
+- name: Look up '{{ _lookup_username }}' in CyberArk Identity
+  uri:
+    url: "https://{{ cyberark_identity_tenant }}.id.cyberark.cloud/RedRock/query"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ cyberark_token }}"
+    body_format: json
+    body:
+      Script: >-
+        SELECT ID, Username, DirectoryServiceUuid, SourceDsLocalized
+        FROM User
+        WHERE Username = '{{ _lookup_username | replace("'", "''") }}'
+    status_code: [200]
+    timeout: 30
+    validate_certs: "{{ cyberark_validate_certs }}"
+  loop: "{{ cyberark_sia_policy_principal_usernames }}"
+  loop_control:
+    loop_var: _lookup_username
+  register: _cyberark_sia_principal_lookups
+  run_once: true
+  delegate_to: localhost
+  no_log: false
+
+- name: Assert all usernames resolved in CyberArk Identity
+  assert:
+    that:
+      - _lookup_result.json.Result.Results | default([]) | length > 0
+    fail_msg: >-
+      Username '{{ cyberark_sia_policy_principal_usernames[idx] }}' was not found
+      in CyberArk Identity. Verify the account exists and is visible to the
+      service account used for authentication.
+  loop: "{{ _cyberark_sia_principal_lookups.results }}"
+  loop_control:
+    loop_var: _lookup_result
+    index_var: idx
+    label: "{{ cyberark_sia_policy_principal_usernames[idx] }}"
+  run_once: true
+  delegate_to: localhost
+
+- name: Warn when a username resolved to multiple directory entries
+  debug:
+    msg: >-
+      WARNING: '{{ cyberark_sia_policy_principal_usernames[idx] }}' matched
+      {{ _lookup_result.json.Result.Results | length }} entries in CyberArk Identity —
+      using the first result. If this is wrong, provide the full principal
+      object via cyberark_sia_policy_principals instead.
+  loop: "{{ _cyberark_sia_principal_lookups.results }}"
+  loop_control:
+    loop_var: _lookup_result
+    index_var: idx
+    label: "{{ cyberark_sia_policy_principal_usernames[idx] }}"
+  when: _lookup_result.json.Result.Results | length > 1
+  run_once: true
+  delegate_to: localhost
+
+- name: Build principals list from Identity lookup results
+  set_fact:
+    cyberark_sia_policy_principals: >-
+      {%- set principals = [] -%}
+      {%- for result in _cyberark_sia_principal_lookups.results -%}
+        {%- set row = result.json.Result.Results[0].Row -%}
+        {%- set _ = principals.append({
+          'id': row.ID,
+          'name': row.Username,
+          'sourceDirectoryName': row.SourceDsLocalized,
+          'sourceDirectoryId': row.DirectoryServiceUuid,
+          'type': 'USER'
+        }) -%}
+      {%- endfor -%}
+      {{ principals }}
+  run_once: true
+  delegate_to: localhost
