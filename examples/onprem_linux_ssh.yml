@@ -75,7 +75,7 @@
 
     cyberark_sia_policy_conditions:
       accessWindow:
-        daysOfTheWeek: [1, 2, 3, 4, 5]   # Mon–Fri
+        daysOfTheWeek: [1, 2, 3, 4, 5] # Mon–Fri
         fromHour: "08:00"
         toHour: "18:00"
       maxSessionDuration: 4
@@ -90,11 +90,10 @@
             computernamePattern: "*.example.internal"
             domain: "example.internal"
         ipRules: []
-
     cyberark_sia_policy_behavior:
       connectAs:
         ssh:
-          username: svc_sia_linux   # local user the session connects as
+          username: svc_sia_linux # local user the session connects as
 
   roles:
     - cyberark_sia_policy_management
@@ -154,7 +153,6 @@
             computernamePattern: "app-"
             domain: "example.internal"
         ipRules: []
-
     cyberark_sia_policy_behavior:
       connectAs:
         ssh:
@@ -299,7 +297,6 @@
             computernamePattern: "bastion02.prod.example.internal"
             domain: "prod.example.internal"
         ipRules: []
-
     cyberark_sia_policy_behavior:
       connectAs:
         ssh:

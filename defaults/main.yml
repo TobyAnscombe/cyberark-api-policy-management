@@ -12,7 +12,7 @@ cyberark_validate_certs: true
 # Policy identity and state
 # ---------------------------------------------------------------------------
 cyberark_sia_policy_name: ""
-cyberark_sia_policy_state: present   # present | absent
+cyberark_sia_policy_state: present # present | absent
 
 # ---------------------------------------------------------------------------
 # Policy metadata
@@ -24,8 +24,7 @@ cyberark_sia_policy_time_zone: "GMT"
 # The timeframe the policy is active.  Leave empty ({}) for unlimited.
 # Set fromTime and toTime (format: 'yyyy-MM-ddTHH:mm:ss') for a bounded window.
 cyberark_sia_policy_time_frame: {}
-
-cyberark_sia_policy_status: "Active"   # Active | Suspended
+cyberark_sia_policy_status: "Active" # Active | Suspended
 
 # ---------------------------------------------------------------------------
 # Policy entitlement (required)
@@ -47,7 +46,7 @@ cyberark_sia_policy_status: "Active"   # Active | Suspended
 cyberark_sia_policy_entitlement:
   targetCategory: VM
   locationType: AWS
-  policyType: Recurring   # Recurring | OnDemand
+  policyType: Recurring # Recurring | OnDemand
 
 # ---------------------------------------------------------------------------
 # Principal resolution (required — use Option A or Option B, not both)
@@ -75,7 +74,6 @@ cyberark_sia_policy_entitlement:
 #
 cyberark_sia_policy_principals: []
 cyberark_sia_policy_principal_usernames: []
-
 # ---------------------------------------------------------------------------
 # Conditions
 # ---------------------------------------------------------------------------
@@ -195,7 +193,6 @@ cyberark_sia_policy_idle_time: 10
 #       directoryId: 280a06f4-3f9b-4910-8967-053a914e314e
 #
 cyberark_sia_policy_targets: {}
-
 # ---------------------------------------------------------------------------
 # Behavior (VM policies only)
 # ---------------------------------------------------------------------------
@@ -226,7 +223,6 @@ cyberark_sia_policy_targets: {}
 #           enableEphemeralUserReconnect: false
 #
 cyberark_sia_policy_behavior: {}
-
 # ---------------------------------------------------------------------------
 # Post-create/update validation
 # ---------------------------------------------------------------------------

@@ -67,7 +67,6 @@
     #   "{{ display_name }} - {{ name_suffix }}"
     # ---------------------------------------------------------------------------
     policy_definitions:
-
       # -- 1. Broad access: any host in the corporate domain -------------------
       - name_suffix: "On-Prem SSH (Domain Wildcard)"
         description: "SSH to all Linux hosts in example.internal"
@@ -81,7 +80,7 @@
           policyType: Recurring
         conditions:
           accessWindow:
-            daysOfTheWeek: [1, 2, 3, 4, 5]   # Mon–Fri
+            daysOfTheWeek: [1, 2, 3, 4, 5] # Mon–Fri
             fromHour: "08:00"
             toHour: "18:00"
           maxSessionDuration: 4

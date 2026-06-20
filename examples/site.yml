@@ -63,7 +63,7 @@
 
     cyberark_sia_policy_conditions:
       accessWindow:
-        daysOfTheWeek: [1, 2, 3, 4, 5]   # Mon–Fri
+        daysOfTheWeek: [1, 2, 3, 4, 5] # Mon–Fri
         fromHour: "08:00"
         toHour: "18:00"
       maxSessionDuration: 4
@@ -72,7 +72,7 @@
 
     cyberark_sia_policy_targets:
       AWS:
-        accountIds: []        # empty = all accounts
+        accountIds: [] # empty = all accounts
         vpcIds: []
         regions:
           - eu-west-1

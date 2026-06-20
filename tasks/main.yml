@@ -29,8 +29,7 @@
 - name: Validate a principal source is provided for present state
   assert:
     that:
-      - (cyberark_sia_policy_principals | length > 0) or
-        (cyberark_sia_policy_principal_usernames | length > 0)
+      - (cyberark_sia_policy_principals | length > 0) or (cyberark_sia_policy_principal_usernames | length > 0)
     fail_msg: >-
       Either cyberark_sia_policy_principals (full principal objects) or
       cyberark_sia_policy_principal_usernames (usernames to resolve via
