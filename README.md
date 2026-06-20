@@ -103,8 +103,8 @@ See [`defaults/main.yml`](defaults/main.yml) for the full reference with inline 
 
 | Variable | Default | Description |
 |---|---|---|
-| `cyberark_subdomain` | `""` | Subdomain of the UAP endpoint (`htb` → `htb.uap.cyberark.cloud`) |
-| `cyberark_identity_tenant` | `""` | Tenant ID for principal resolution (`aca4779`) |
+| `cyberark_subdomain` | `""` | Subdomain of the UAP endpoint (`acme` → `acme.uap.cyberark.cloud`) |
+| `cyberark_identity_tenant` | `""` | Tenant ID for principal resolution |
 | `cyberark_sia_policy_name` | `""` | Policy name — used as the unique identifier |
 | `cyberark_sia_policy_state` | `present` | `present` or `absent` |
 | `cyberark_sia_policy_entitlement` | see defaults | `targetCategory`, `locationType`, `policyType` |
