@@ -29,35 +29,46 @@
 - name: Validate a principal source is provided for present state
   assert:
     that:
-      - (cyberark_sia_policy_principals | length > 0) or (cyberark_sia_policy_principal_usernames | length > 0)
+      - >-
+        (cyberark_sia_policy_principals | length > 0) or
+        (cyberark_sia_policy_principal_usernames | length > 0) or
+        (cyberark_sia_policy_principal_role_names | length > 0)
     fail_msg: >-
-      Either cyberark_sia_policy_principals (full principal objects) or
-      cyberark_sia_policy_principal_usernames (usernames to resolve via
-      Identity API) must be set when state is 'present'.
+      One of cyberark_sia_policy_principals, cyberark_sia_policy_principal_usernames,
+      or cyberark_sia_policy_principal_role_names must be set when state is 'present'.
   when: cyberark_sia_policy_state == 'present'
   run_once: true
   delegate_to: localhost
 
-- name: Validate cyberark_identity_tenant is set for username lookup
+- name: Validate cyberark_identity_tenant is set for principal lookup
   assert:
     that:
       - cyberark_identity_tenant | trim | length > 0
     fail_msg: >-
       cyberark_identity_tenant must be set when using
-      cyberark_sia_policy_principal_usernames for principal resolution.
+      cyberark_sia_policy_principal_usernames or cyberark_sia_policy_principal_role_names
+      for principal resolution.
   when:
     - cyberark_sia_policy_state == 'present'
-    - cyberark_sia_policy_principal_usernames | length > 0
+    - (cyberark_sia_policy_principal_usernames | length > 0) or (cyberark_sia_policy_principal_role_names | length > 0)
   run_once: true
   delegate_to: localhost
 
 # Resolve usernames to full principal objects via CyberArk Identity API.
 # This sets cyberark_sia_policy_principals and runs before policy_present.yml.
-- name: Resolve principals from CyberArk Identity
+- name: Resolve user principals from CyberArk Identity
   include_tasks: principal_lookup.yml
   when:
     - cyberark_sia_policy_state == 'present'
     - cyberark_sia_policy_principal_usernames | length > 0
+
+# Resolve Identity role/group names to ROLE-type principal objects.
+# Appends to cyberark_sia_policy_principals (merges with any user principals).
+- name: Resolve role principals from CyberArk Identity
+  include_tasks: role_lookup.yml
+  when:
+    - cyberark_sia_policy_state == 'present'
+    - cyberark_sia_policy_principal_role_names | length > 0
 
 - name: Ensure policy is present
   include_tasks: policy_present.yml

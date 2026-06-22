@@ -2,8 +2,9 @@
 # Required — set in playbook vars; cyberark_token is produced by the cyberark_api_authentication role
 cyberark_subdomain: ""
 
-# Required when using cyberark_sia_policy_principal_usernames for principal
-# resolution — the same tenant value used by the cyberark_api_authentication role.
+# Required when using cyberark_sia_policy_principal_usernames or
+# cyberark_sia_policy_principal_role_names for principal resolution —
+# the same tenant value used by the cyberark_api_authentication role.
 cyberark_identity_tenant: ""
 
 cyberark_validate_certs: true
@@ -72,8 +73,17 @@ cyberark_sia_policy_entitlement:
 #   cyberark_sia_policy_principal_usernames:
 #     - john@example.com
 #
+# Option C — Identity role/group name list.
+# Provide the name(s) of CyberArk Identity roles (including Entra groups
+# synced via SCIM) to resolve to ROLE-type principal objects automatically.
+# cyberark_identity_tenant must be set.
+#
+#   cyberark_sia_policy_principal_role_names:
+#     - "SIA - Linux Server Administrators"
+#
 cyberark_sia_policy_principals: []
 cyberark_sia_policy_principal_usernames: []
+cyberark_sia_policy_principal_role_names: []
 # ---------------------------------------------------------------------------
 # Conditions
 # ---------------------------------------------------------------------------
@@ -85,14 +95,14 @@ cyberark_sia_policy_principal_usernames: []
 #
 cyberark_sia_policy_conditions:
   accessWindow:
-    daysOfTheWeek: [0, 1, 2, 3, 4, 5, 6]
-    fromHour: "00:00"
-    toHour: "00:00"
-  maxSessionDuration: 1
+    daysOfTheWeek: [1, 2, 3, 4, 5, 6, 0] # Mon–Sun
+    fromHour: "07:00"
+    toHour: "20:00"
+  maxSessionDuration: 3
 
 # Idle timeout in minutes before the session is terminated (VM and DB only).
 # Valid range: 1–120.  Merged into conditions automatically for VM and DB policies.
-cyberark_sia_policy_idle_time: 10
+cyberark_sia_policy_idle_time: 30
 
 # Access approval gate.  When required: true, also remove accessWindow from
 # cyberark_sia_policy_conditions above.  Leave approvers empty to route to

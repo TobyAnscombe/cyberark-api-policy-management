@@ -1,0 +1,64 @@
+---
+# Resolves each name in cyberark_sia_policy_principal_role_names to a full
+# ROLE-type principal object via the CyberArk Identity RedRock query API,
+# then appends the results to cyberark_sia_policy_principals.
+#
+# This is the right pattern when the principal is a CyberArk Identity role
+# or an Entra group synced via SCIM — pass the role name and the role
+# resolves the id automatically.
+
+- name: "Look up Identity role in CyberArk Identity: {{ _lookup_role_name }}"
+  ansible.builtin.uri:
+    url: "https://{{ cyberark_identity_tenant }}.id.cyberark.cloud/RedRock/query"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ cyberark_token }}"
+    body_format: json
+    body:
+      Script: >-
+        SELECT ID, Name
+        FROM Role
+        WHERE Name = '{{ _lookup_role_name | replace("'", "''") }}'
+    status_code: [200]
+    timeout: 30
+    validate_certs: "{{ cyberark_validate_certs }}"
+  loop: "{{ cyberark_sia_policy_principal_role_names }}"
+  loop_control:
+    loop_var: _lookup_role_name
+  register: _cyberark_sia_role_lookups
+  run_once: true
+  delegate_to: localhost
+
+- name: Assert all role names resolved in CyberArk Identity
+  ansible.builtin.assert:
+    that:
+      - _lookup_result.json.Result.Results | default([]) | length > 0
+    fail_msg: >-
+      Role '{{ cyberark_sia_policy_principal_role_names[idx] }}' was not found
+      in CyberArk Identity. Verify the role/group exists and is visible to the
+      service account used for authentication.
+  loop: "{{ _cyberark_sia_role_lookups.results }}"
+  loop_control:
+    loop_var: _lookup_result
+    index_var: idx
+    label: "{{ cyberark_sia_policy_principal_role_names[idx] }}"
+  run_once: true
+  delegate_to: localhost
+
+- name: Build principals list from Identity role lookup results
+  ansible.builtin.set_fact:
+    cyberark_sia_policy_principals: >-
+      {%- set principals = cyberark_sia_policy_principals | list -%}
+      {%- for result in _cyberark_sia_role_lookups.results -%}
+        {%- set row = result.json.Result.Results[0].Row -%}
+        {%- set _ = principals.append({
+          'id': row.ID,
+          'name': row.Name,
+          'sourceDirectoryName': 'Identity',
+          'sourceDirectoryId': 'Identity',
+          'type': 'ROLE'
+        }) -%}
+      {%- endfor -%}
+      {{ principals }}
+  run_once: true
+  delegate_to: localhost
