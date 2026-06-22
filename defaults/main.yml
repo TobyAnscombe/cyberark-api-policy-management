@@ -95,7 +95,7 @@ cyberark_sia_policy_principal_role_names: []
 #
 cyberark_sia_policy_conditions:
   accessWindow:
-    daysOfTheWeek: [1, 2, 3, 4, 5, 6, 0] # Mon–Sun
+    daysOfTheWeek: [1, 2, 3, 4, 5] # Mon–Fri
     fromHour: "07:00"
     toHour: "20:00"
   maxSessionDuration: 3
