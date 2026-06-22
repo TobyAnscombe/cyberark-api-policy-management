@@ -73,7 +73,7 @@ ansible-galaxy install -r requirements.yml
 
 ## Principal resolution
 
-The role supports two ways to specify principals:
+The role supports three ways to specify principals:
 
 ### Option A — full principal objects
 
@@ -97,6 +97,17 @@ cyberark_sia_policy_principal_usernames:
   - john.smith@example.com
 ```
 
+### Option C — Identity role / group name list (recommended for Entra groups)
+
+Pass the name(s) of CyberArk Identity roles, including Entra security groups synced via SCIM. The role queries the Identity `RedRock/query` API (`SELECT ID, Name FROM Role WHERE Name = '...'`) to resolve each name to a `ROLE`-type principal object automatically. Requires `cyberark_identity_tenant` to be set.
+
+```yaml
+cyberark_sia_policy_principal_role_names:
+  - "HTSECA_CyberArk_Somerford_PrivilegeCloud_Users"
+```
+
+Options B and C can be combined — the role resolves each list independently and merges the results into `cyberark_sia_policy_principals`.
+
 ## Variables
 
 See [`defaults/main.yml`](defaults/main.yml) for the full reference with inline documentation. Key variables:
@@ -110,8 +121,9 @@ See [`defaults/main.yml`](defaults/main.yml) for the full reference with inline 
 | `cyberark_sia_policy_entitlement` | see defaults | `targetCategory`, `locationType`, `policyType` |
 | `cyberark_sia_policy_principals` | `[]` | Full principal objects (Option A) |
 | `cyberark_sia_policy_principal_usernames` | `[]` | Usernames to resolve (Option B) |
-| `cyberark_sia_policy_conditions` | see defaults | Access window and session limits |
-| `cyberark_sia_policy_idle_time` | `10` | Idle timeout in minutes (VM and DB policies only) |
+| `cyberark_sia_policy_principal_role_names` | `[]` | Identity role / group names to resolve (Option C) |
+| `cyberark_sia_policy_conditions` | Mon–Fri 07:00–20:00, 3h max | Access window and session limits |
+| `cyberark_sia_policy_idle_time` | `30` | Idle timeout in minutes (VM and DB policies only) |
 | `cyberark_sia_policy_targets` | `{}` | Target resources — structure varies by policy type |
 | `cyberark_sia_policy_behavior` | `{}` | `connectAs` credentials for VM policies |
 | `cyberark_sia_policy_access_approval` | undefined | Approval gate (requires tenant feature flag) |
