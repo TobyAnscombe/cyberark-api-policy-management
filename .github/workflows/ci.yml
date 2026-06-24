@@ -16,7 +16,7 @@ jobs:
     uses: TobyAnscombe/github-actions/.github/workflows/ansible-ci.yml@main
     with:
       ansible_lint_version: "26.1.0"
-      requirements_file: ""
+      requirements_file: "requirements.yml"
 
   protect-main:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
