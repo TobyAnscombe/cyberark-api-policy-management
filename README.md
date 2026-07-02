@@ -103,7 +103,7 @@ Pass the name(s) of CyberArk Identity roles, including Entra security groups syn
 
 ```yaml
 cyberark_sia_policy_principal_role_names:
-  - "HTSECA_CyberArk_Somerford_PrivilegeCloud_Users"
+  - "HTSECA_CyberArk_ExampleVendor_PrivilegeCloud_Users"
 ```
 
 Options B and C can be combined — the role resolves each list independently and merges the results into `cyberark_sia_policy_principals`.

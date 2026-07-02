@@ -26,6 +26,7 @@
   loop_control:
     loop_var: _lookup_role_name
   register: _cyberark_sia_role_lookups
+  no_log: true
   run_once: true
   delegate_to: localhost
 

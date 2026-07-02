@@ -30,7 +30,7 @@
   register: _cyberark_sia_principal_lookups
   run_once: true
   delegate_to: localhost
-  no_log: false
+  no_log: true
 
 - name: Assert all usernames resolved in CyberArk Identity
   assert:
@@ -67,7 +67,7 @@
 - name: Build principals list from Identity lookup results
   set_fact:
     cyberark_sia_policy_principals: >-
-      {%- set principals = [] -%}
+      {%- set principals = cyberark_sia_policy_principals | default([]) | list -%}
       {%- for result in _cyberark_sia_principal_lookups.results -%}
         {%- set row = result.json.Result.Results[0].Row -%}
         {%- set _ = principals.append({
