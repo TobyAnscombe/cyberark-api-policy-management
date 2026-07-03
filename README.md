@@ -15,10 +15,10 @@ Ansible role for idempotently creating, updating, and deleting CyberArk Secure I
 roles:
   - name: cyberark_api_authentication
     src: https://github.com/TobyAnscombe/cyberark-api-management
-    version: v1.0.3
+    version: v1.1.0
   - name: cyberark_sia_policy_management
     src: https://github.com/TobyAnscombe/cyberark-api-policy-management
-    version: v1.0.5
+    version: v1.1.0
 ```
 
 ```bash
