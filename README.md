@@ -4,7 +4,7 @@ Ansible role for idempotently creating, updating, and deleting CyberArk Secure I
 
 ## Requirements
 
-- Ansible Core 2.9+
+- Ansible Core 2.14+
 - A valid `cyberark_token` — use the [`cyberark_api_authentication`](https://github.com/TobyAnscombe/cyberark-api-management) role to produce one
 - `cyberark_identity_tenant` — required when resolving principals from usernames (see Principal Resolution below)
 
