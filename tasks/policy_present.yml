@@ -4,7 +4,7 @@
 # ---------------------------------------------------------------------------
 - name: Search for existing policy by name
   uri:
-    url: "https://{{ cyberark_subdomain }}.uap.cyberark.cloud/api/policies?q={{ cyberark_sia_policy_name | urlencode }}&limit=50"
+    url: "https://{{ cyberark_subdomain }}.{{ cyberark_uap_domain }}/api/policies?q={{ cyberark_sia_policy_name | urlencode }}&limit=50"
     method: GET
     headers:
       Authorization: "Bearer {{ cyberark_token }}"
@@ -101,11 +101,73 @@
   delegate_to: localhost
 
 # ---------------------------------------------------------------------------
+# Fetch current policy detail (needed to decide whether an update is a no-op)
+# ---------------------------------------------------------------------------
+- name: Fetch current policy detail
+  uri:
+    url: "https://{{ cyberark_subdomain }}.{{ cyberark_uap_domain }}/api/policies/{{ _cyberark_sia_policy_id }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ cyberark_token }}"
+    status_code: [200]
+    timeout: 30
+    validate_certs: "{{ cyberark_validate_certs }}"
+  register: _cyberark_sia_policy_current
+  no_log: true
+  when: _cyberark_sia_policy_id | trim | length > 0
+  run_once: true
+  delegate_to: localhost
+
+# Compare the desired body against the current server state so an update that
+# wouldn't actually change anything reports changed: false. Dict-shaped
+# sections (metadata, conditions, behavior) use the combine-equality trick —
+# this ignores extra server-side fields in `current` that aren't in `body`,
+# and only fires when a field common to both actually differs. List-shaped
+# sections (principals, targets) use direct equality — `targets` in particular
+# can be a dict (AWS/Azure/GCP/FQDN-IP forms) or a list (Entra Group
+# assignment), so equality is the only comparison safe for both shapes.
+- name: Compute per-section diff flags for the update decision
+  set_fact:
+    _cyberark_sia_policy_diff_metadata: >-
+      {{ (_cyberark_sia_policy_current.json.metadata
+          | combine(_cyberark_sia_policy_body.metadata, recursive=True))
+         != _cyberark_sia_policy_current.json.metadata }}
+    _cyberark_sia_policy_diff_conditions: >-
+      {{ (_cyberark_sia_policy_current.json.conditions
+          | combine(_cyberark_sia_policy_body.conditions, recursive=True))
+         != _cyberark_sia_policy_current.json.conditions }}
+    _cyberark_sia_policy_diff_behavior: >-
+      {{ ((_cyberark_sia_policy_current.json.behavior | default({}))
+          | combine((_cyberark_sia_policy_body.behavior | default({})), recursive=True))
+         != (_cyberark_sia_policy_current.json.behavior | default({})) }}
+    _cyberark_sia_policy_diff_principals: >-
+      {{ _cyberark_sia_policy_current.json.principals != _cyberark_sia_policy_body.principals }}
+    _cyberark_sia_policy_diff_targets: >-
+      {{ _cyberark_sia_policy_current.json.targets != _cyberark_sia_policy_body.targets }}
+  when: _cyberark_sia_policy_id | trim | length > 0
+  run_once: true
+  delegate_to: localhost
+
+- name: Determine whether the policy actually needs updating
+  set_fact:
+    _cyberark_sia_policy_update_needed: >-
+      {{
+        _cyberark_sia_policy_id | trim | length == 0
+        or _cyberark_sia_policy_diff_metadata | default(false) | bool
+        or _cyberark_sia_policy_diff_conditions | default(false) | bool
+        or _cyberark_sia_policy_diff_behavior | default(false) | bool
+        or _cyberark_sia_policy_diff_principals | default(false) | bool
+        or _cyberark_sia_policy_diff_targets | default(false) | bool
+      }}
+  run_once: true
+  delegate_to: localhost
+
+# ---------------------------------------------------------------------------
 # Create or update
 # ---------------------------------------------------------------------------
 - name: Create policy
   uri:
-    url: "https://{{ cyberark_subdomain }}.uap.cyberark.cloud/api/policies"
+    url: "https://{{ cyberark_subdomain }}.{{ cyberark_uap_domain }}/api/policies"
     method: POST
     headers:
       Authorization: "Bearer {{ cyberark_token }}"
@@ -122,7 +184,7 @@
 
 - name: Update policy
   uri:
-    url: "https://{{ cyberark_subdomain }}.uap.cyberark.cloud/api/policies/{{ _cyberark_sia_policy_id }}"
+    url: "https://{{ cyberark_subdomain }}.{{ cyberark_uap_domain }}/api/policies/{{ _cyberark_sia_policy_id }}"
     method: PUT
     headers:
       Authorization: "Bearer {{ cyberark_token }}"
@@ -132,13 +194,18 @@
     timeout: 30
     validate_certs: "{{ cyberark_validate_certs }}"
   no_log: true
-  when: _cyberark_sia_policy_id | trim | length > 0
+  when:
+    - _cyberark_sia_policy_id | trim | length > 0
+    - _cyberark_sia_policy_update_needed | bool
   run_once: true
   delegate_to: localhost
 
+# Only needed when an update actually happened. The create path exposes
+# detail straight from the POST response; a no-op update reuses
+# _cyberark_sia_policy_current (fetched above) instead of a second GET.
 - name: Fetch updated policy detail
   uri:
-    url: "https://{{ cyberark_subdomain }}.uap.cyberark.cloud/api/policies/{{ _cyberark_sia_policy_id }}"
+    url: "https://{{ cyberark_subdomain }}.{{ cyberark_uap_domain }}/api/policies/{{ _cyberark_sia_policy_id }}"
     method: GET
     headers:
       Authorization: "Bearer {{ cyberark_token }}"
@@ -147,7 +214,9 @@
     validate_certs: "{{ cyberark_validate_certs }}"
   register: _cyberark_sia_policy_get
   no_log: true
-  when: _cyberark_sia_policy_id | trim | length > 0
+  when:
+    - _cyberark_sia_policy_id | trim | length > 0
+    - _cyberark_sia_policy_update_needed | bool
   run_once: true
   delegate_to: localhost
 
@@ -162,10 +231,18 @@
   run_once: true
   delegate_to: localhost
 
+# Real update: use the fresh GET taken after the PUT. No-op update: reuse the
+# policy detail already fetched before the update decision — avoids a
+# redundant second GET when nothing changed.
 - name: Expose updated policy detail as fact
   set_fact:
     cyberark_sia_policy_id: "{{ _cyberark_sia_policy_id }}"
-    cyberark_sia_policy_detail: "{{ _cyberark_sia_policy_get.json }}"
+    cyberark_sia_policy_detail: >-
+      {{
+        _cyberark_sia_policy_get.json
+        if _cyberark_sia_policy_update_needed | bool
+        else _cyberark_sia_policy_current.json
+      }}
   when: _cyberark_sia_policy_id | trim | length > 0
   run_once: true
   delegate_to: localhost
@@ -175,7 +252,7 @@
 # ---------------------------------------------------------------------------
 - name: Trigger policy validation
   uri:
-    url: "https://{{ cyberark_subdomain }}.uap.cyberark.cloud/api/policies/{{ cyberark_sia_policy_id }}/validate"
+    url: "https://{{ cyberark_subdomain }}.{{ cyberark_uap_domain }}/api/policies/{{ cyberark_sia_policy_id }}/validate"
     method: POST
     headers:
       Authorization: "Bearer {{ cyberark_token }}"

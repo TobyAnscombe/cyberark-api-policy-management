@@ -1,7 +1,7 @@
 ---
 - name: Search for existing policy by name
   uri:
-    url: "https://{{ cyberark_subdomain }}.uap.cyberark.cloud/api/policies?q={{ cyberark_sia_policy_name | urlencode }}&limit=50"
+    url: "https://{{ cyberark_subdomain }}.{{ cyberark_uap_domain }}/api/policies?q={{ cyberark_sia_policy_name | urlencode }}&limit=50"
     method: GET
     headers:
       Authorization: "Bearer {{ cyberark_token }}"
@@ -29,7 +29,7 @@
 
 - name: Delete policy
   uri:
-    url: "https://{{ cyberark_subdomain }}.uap.cyberark.cloud/api/policies/{{ _cyberark_sia_policy_id }}"
+    url: "https://{{ cyberark_subdomain }}.{{ cyberark_uap_domain }}/api/policies/{{ _cyberark_sia_policy_id }}"
     method: DELETE
     headers:
       Authorization: "Bearer {{ cyberark_token }}"

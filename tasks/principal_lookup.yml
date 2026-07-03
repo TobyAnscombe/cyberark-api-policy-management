@@ -11,7 +11,7 @@
 
 - name: "Look up principal in CyberArk Identity: {{ _lookup_username }}"
   uri:
-    url: "https://{{ cyberark_identity_tenant }}.id.cyberark.cloud/RedRock/query"
+    url: "https://{{ cyberark_identity_tenant }}.{{ cyberark_identity_domain }}/RedRock/query"
     method: POST
     headers:
       Authorization: "Bearer {{ cyberark_token }}"

@@ -9,6 +9,12 @@ cyberark_identity_tenant: ""
 
 cyberark_validate_certs: true
 
+# CyberArk Identity API domain — override for gov cloud/other regions
+cyberark_identity_domain: id.cyberark.cloud
+
+# CyberArk UAP (policy) API domain — override for gov cloud/other regions
+cyberark_uap_domain: uap.cyberark.cloud
+
 # ---------------------------------------------------------------------------
 # Policy identity and state
 # ---------------------------------------------------------------------------

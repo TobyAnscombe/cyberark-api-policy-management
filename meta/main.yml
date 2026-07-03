@@ -7,7 +7,7 @@ galaxy_info:
     Idempotently creates, updates, or deletes CyberArk SIA access control policies
     (VM, DB, Cloud Console, and Entra Group) via the UAP REST API
   license: MIT
-  min_ansible_version: "2.9"
+  min_ansible_version: "2.14"
   platforms:
     - name: EL
       versions: ["8", "9"]

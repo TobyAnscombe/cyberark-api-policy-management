@@ -8,8 +8,8 @@
 # resolves the id automatically.
 
 - name: "Look up Identity role in CyberArk Identity: {{ _lookup_role_name }}"
-  ansible.builtin.uri:
-    url: "https://{{ cyberark_identity_tenant }}.id.cyberark.cloud/RedRock/query"
+  uri:
+    url: "https://{{ cyberark_identity_tenant }}.{{ cyberark_identity_domain }}/RedRock/query"
     method: POST
     headers:
       Authorization: "Bearer {{ cyberark_token }}"
@@ -31,7 +31,7 @@
   delegate_to: localhost
 
 - name: Assert all role names resolved in CyberArk Identity
-  ansible.builtin.assert:
+  assert:
     that:
       - _lookup_result.json.Result.Results | default([]) | length > 0
     fail_msg: >-
@@ -47,7 +47,7 @@
   delegate_to: localhost
 
 - name: Build principals list from Identity role lookup results
-  ansible.builtin.set_fact:
+  set_fact:
     cyberark_sia_policy_principals: >-
       {%- set principals = cyberark_sia_policy_principals | list -%}
       {%- for result in _cyberark_sia_role_lookups.results -%}
