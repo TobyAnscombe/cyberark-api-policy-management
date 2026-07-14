@@ -26,7 +26,7 @@
   loop_control:
     loop_var: _lookup_role_name
   register: _cyberark_sia_role_lookups
-  no_log: true
+  no_log: "{{ cyberark_no_log }}"
   run_once: true
   delegate_to: localhost
 

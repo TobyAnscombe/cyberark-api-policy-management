@@ -130,6 +130,7 @@ See [`defaults/main.yml`](defaults/main.yml) for the full reference with inline 
 | `cyberark_sia_policy_tags` | `[]` | Policy tags |
 | `cyberark_sia_policy_status` | `Active` | `Active` or `Suspended` |
 | `cyberark_sia_policy_validate_after` | `false` | Trigger post-create validation (Cloud Console only) |
+| `cyberark_no_log` | `true` | Suppress log output on tasks that handle the bearer token. Override to `false` temporarily to debug a failing task. |
 
 ## Supported policy types
 

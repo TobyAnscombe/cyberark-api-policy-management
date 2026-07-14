@@ -9,6 +9,11 @@ cyberark_identity_tenant: ""
 
 cyberark_validate_certs: true
 
+# Suppresses task output that could contain the bearer token. Override to
+# false temporarily (e.g. -e cyberark_no_log=false) to debug a failing task —
+# never disable it permanently in a committed playbook.
+cyberark_no_log: true
+
 # CyberArk Identity API domain — override for gov cloud/other regions
 cyberark_identity_domain: id.cyberark.cloud
 

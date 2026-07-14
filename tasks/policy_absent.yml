@@ -9,7 +9,7 @@
     timeout: 30
     validate_certs: "{{ cyberark_validate_certs }}"
   register: _cyberark_sia_policy_search
-  no_log: true
+  no_log: "{{ cyberark_no_log }}"
   run_once: true
   delegate_to: localhost
 
@@ -36,7 +36,7 @@
     status_code: [200]
     timeout: 30
     validate_certs: "{{ cyberark_validate_certs }}"
-  no_log: true
+  no_log: "{{ cyberark_no_log }}"
   when: _cyberark_sia_policy_id | trim | length > 0
   run_once: true
   delegate_to: localhost
