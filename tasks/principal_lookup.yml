@@ -30,7 +30,7 @@
   register: _cyberark_sia_principal_lookups
   run_once: true
   delegate_to: localhost
-  no_log: true
+  no_log: "{{ cyberark_no_log }}"
 
 - name: Assert all usernames resolved in CyberArk Identity
   assert:
