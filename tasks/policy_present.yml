@@ -162,6 +162,35 @@
   run_once: true
   delegate_to: localhost
 
+- name: Expose planned policy action
+  set_fact:
+    cyberark_sia_policy_action: >-
+      {{
+        'create'
+        if _cyberark_sia_policy_id | trim | length == 0
+        else ('update' if _cyberark_sia_policy_update_needed | bool else 'none')
+      }}
+    cyberark_sia_policy_changed: "{{ _cyberark_sia_policy_update_needed | bool }}"
+    cyberark_sia_policy_desired: "{{ _cyberark_sia_policy_body }}"
+  run_once: true
+  delegate_to: localhost
+
+- name: Preview policy action
+  debug:
+    msg: >-
+      Policy '{{ cyberark_sia_policy_name }}' would be
+      {{
+        {
+          'create': 'created',
+          'update': 'updated',
+          'none': 'left unchanged'
+        }[cyberark_sia_policy_action]
+      }}.
+  changed_when: cyberark_sia_policy_changed | bool
+  when: cyberark_sia_policy_dry_run | bool
+  run_once: true
+  delegate_to: localhost
+
 # ---------------------------------------------------------------------------
 # Create or update
 # ---------------------------------------------------------------------------
@@ -178,7 +207,9 @@
     validate_certs: "{{ cyberark_validate_certs }}"
   register: _cyberark_sia_policy_create
   no_log: "{{ cyberark_no_log }}"
-  when: _cyberark_sia_policy_id | trim | length == 0
+  when:
+    - not cyberark_sia_policy_dry_run | bool
+    - _cyberark_sia_policy_id | trim | length == 0
   run_once: true
   delegate_to: localhost
 
@@ -195,6 +226,7 @@
     validate_certs: "{{ cyberark_validate_certs }}"
   no_log: "{{ cyberark_no_log }}"
   when:
+    - not cyberark_sia_policy_dry_run | bool
     - _cyberark_sia_policy_id | trim | length > 0
     - _cyberark_sia_policy_update_needed | bool
   run_once: true
@@ -215,6 +247,7 @@
   register: _cyberark_sia_policy_get
   no_log: "{{ cyberark_no_log }}"
   when:
+    - not cyberark_sia_policy_dry_run | bool
     - _cyberark_sia_policy_id | trim | length > 0
     - _cyberark_sia_policy_update_needed | bool
   run_once: true
@@ -227,7 +260,19 @@
   set_fact:
     cyberark_sia_policy_id: "{{ _cyberark_sia_policy_create.json.policyId }}"
     cyberark_sia_policy_detail: "{{ _cyberark_sia_policy_create.json }}"
-  when: _cyberark_sia_policy_id | trim | length == 0
+  when:
+    - not cyberark_sia_policy_dry_run | bool
+    - _cyberark_sia_policy_id | trim | length == 0
+  run_once: true
+  delegate_to: localhost
+
+- name: Expose dry-run create detail as fact
+  set_fact:
+    cyberark_sia_policy_id: ""
+    cyberark_sia_policy_detail: "{{ _cyberark_sia_policy_body }}"
+  when:
+    - cyberark_sia_policy_dry_run | bool
+    - _cyberark_sia_policy_id | trim | length == 0
   run_once: true
   delegate_to: localhost
 
@@ -240,7 +285,7 @@
     cyberark_sia_policy_detail: >-
       {{
         _cyberark_sia_policy_get.json
-        if _cyberark_sia_policy_update_needed | bool
+        if _cyberark_sia_policy_update_needed | bool and not cyberark_sia_policy_dry_run | bool
         else _cyberark_sia_policy_current.json
       }}
   when: _cyberark_sia_policy_id | trim | length > 0
@@ -261,6 +306,7 @@
     validate_certs: "{{ cyberark_validate_certs }}"
   no_log: "{{ cyberark_no_log }}"
   when:
+    - not cyberark_sia_policy_dry_run | bool
     - cyberark_sia_policy_validate_after | bool
     - cyberark_sia_policy_entitlement.targetCategory == 'Cloud Console'
   run_once: true

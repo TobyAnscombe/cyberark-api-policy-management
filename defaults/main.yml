@@ -26,6 +26,10 @@ cyberark_uap_domain: uap.cyberark.cloud
 cyberark_sia_policy_name: ""
 cyberark_sia_policy_state: present # present | absent
 
+# Query current state and report the action without creating, updating, deleting,
+# or validating policies. Authentication and read-only API queries still run.
+cyberark_sia_policy_dry_run: false
+
 # ---------------------------------------------------------------------------
 # Policy metadata
 # ---------------------------------------------------------------------------

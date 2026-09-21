@@ -118,6 +118,7 @@ See [`defaults/main.yml`](defaults/main.yml) for the full reference with inline 
 | `cyberark_identity_tenant` | `""` | Tenant ID for principal resolution |
 | `cyberark_sia_policy_name` | `""` | Policy name — used as the unique identifier |
 | `cyberark_sia_policy_state` | `present` | `present` or `absent` |
+| `cyberark_sia_policy_dry_run` | `false` | Read current state and report the planned action without creating, updating, deleting, or validating a policy |
 | `cyberark_sia_policy_entitlement` | see defaults | `targetCategory`, `locationType`, `policyType` |
 | `cyberark_sia_policy_principals` | `[]` | Full principal objects (Option A) |
 | `cyberark_sia_policy_principal_usernames` | `[]` | Usernames to resolve (Option B) |
@@ -295,6 +296,25 @@ After the role runs, the following facts are available to downstream tasks:
 | `cyberark_sia_policy_id` | The policy UUID |
 | `cyberark_sia_policy_detail` | Full policy object — populated on both create and update (GET-after-PUT on update path) |
 | `cyberark_sia_policy_principals` | Resolved principal list (set after Identity lookup) |
+| `cyberark_sia_policy_action` | Planned or completed action: `create`, `update`, `delete`, or `none` |
+| `cyberark_sia_policy_changed` | Whether the policy differs from the requested state |
+| `cyberark_sia_policy_desired` | Desired policy body for `present` state, including during dry run |
+
+## Dry run
+
+Set `cyberark_sia_policy_dry_run: true` to authenticate, resolve principals,
+read the current policy, and calculate whether it would be created, updated,
+deleted, or left unchanged. The role sends no policy mutation requests in this
+mode, and post-update validation is skipped. Principal resolution still uses
+the Identity API's read-only query endpoint.
+
+```yaml
+cyberark_sia_policy_dry_run: true
+```
+
+The preview task reports `changed` for planned create, update, or delete actions.
+Use this variable instead of `ansible-playbook --check`, because the role must
+perform authenticated API reads to produce an accurate plan.
 
 ## Examples
 
