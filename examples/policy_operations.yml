@@ -169,7 +169,7 @@
 
     cyberark_sia_policy_conditions:
       accessWindow:
-        daysOfTheWeek: [1, 2, 3, 4, 5]
+        daysOfTheWeek: [0, 1, 2, 3, 4]
         fromHour: "08:00"
         toHour: "18:00"
       maxSessionDuration: 4
@@ -236,7 +236,7 @@
     # Extended hours — change from 08:00–18:00 to 07:00–20:00
     cyberark_sia_policy_conditions:
       accessWindow:
-        daysOfTheWeek: [1, 2, 3, 4, 5]
+        daysOfTheWeek: [0, 1, 2, 3, 4]
         fromHour: "07:00"
         toHour: "20:00"
       maxSessionDuration: 8

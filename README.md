@@ -48,7 +48,7 @@ ansible-galaxy install -r requirements.yml
 
     cyberark_sia_policy_conditions:
       accessWindow:
-        daysOfTheWeek: [1, 2, 3, 4, 5]
+        daysOfTheWeek: [0, 1, 2, 3, 4]
         fromHour: "08:00"
         toHour: "18:00"
       maxSessionDuration: 4
@@ -200,7 +200,7 @@ cyberark_sia_policy_targets:
 ```yaml
 cyberark_sia_policy_conditions:
   accessWindow:
-    daysOfTheWeek: [1, 2, 3, 4, 5]   # 0=Sun, 1=Mon … 6=Sat
+    daysOfTheWeek: [0, 1, 2, 3, 4]   # 0=Mon … 6=Sun
     fromHour: "08:00"                  # HH:MM — seconds not accepted
     toHour: "18:00"
   maxSessionDuration: 4                # hours
@@ -250,7 +250,7 @@ vars:
     - name_suffix: "On-Prem SSH (Domain Wildcard)"
       entitlement: {targetCategory: VM, locationType: FQDN/IP, policyType: Recurring}
       conditions:
-        accessWindow: {daysOfTheWeek: [1,2,3,4,5], fromHour: "08:00", toHour: "18:00"}
+        accessWindow: {daysOfTheWeek: [0,1,2,3,4], fromHour: "08:00", toHour: "18:00"}
         maxSessionDuration: 4
       idle_time: 30
       targets:

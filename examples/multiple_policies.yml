@@ -87,7 +87,7 @@
           - *role_linux_admins
         conditions:
           accessWindow:
-            daysOfTheWeek: [1, 2, 3, 4, 5]
+            daysOfTheWeek: [0, 1, 2, 3, 4]
             fromHour: "08:00"
             toHour: "18:00"
           maxSessionDuration: 8
@@ -117,7 +117,7 @@
           - *role_dba
         conditions:
           accessWindow:
-            daysOfTheWeek: [1, 2, 3, 4, 5]
+            daysOfTheWeek: [0, 1, 2, 3, 4]
             fromHour: "09:00"
             toHour: "17:00"
           maxSessionDuration: 2

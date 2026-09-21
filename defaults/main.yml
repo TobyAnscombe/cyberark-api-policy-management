@@ -102,7 +102,7 @@ cyberark_sia_policy_principal_role_names: []
 # ---------------------------------------------------------------------------
 # Conditions
 # ---------------------------------------------------------------------------
-# Access window and session limits.  All days (0=Sun … 6=Sat) with no hour
+# Access window and session limits.  All days (0=Mon … 6=Sun) with no hour
 # restriction by default.
 #
 # NOTE: If accessApproval.required is true, omit accessWindow from this dict —
@@ -110,7 +110,7 @@ cyberark_sia_policy_principal_role_names: []
 #
 cyberark_sia_policy_conditions:
   accessWindow:
-    daysOfTheWeek: [1, 2, 3, 4, 5] # Mon–Fri
+    daysOfTheWeek: [0, 1, 2, 3, 4] # Mon–Fri
     fromHour: "07:00"
     toHour: "20:00"
   maxSessionDuration: 3
